@@ -353,6 +353,7 @@ Bool_t CombinationHistogramProducer::Notify() {
 
 int main(int argc, char** argv) {
 
+  /*
   cxxopts::Options options("CombinationHistogramProducer", "Writes histograms from ROOT TTrees");
   options.add_options()
     ("f,file", "File name", cxxopts::value<std::string>());
@@ -362,11 +363,13 @@ int main(int argc, char** argv) {
     return -1;
   }
   auto file = result["file"].as<std::string>();
-
-
+  */
   CombinationHistogramProducer chp;
   TChain ch("TreeWriter/eventTree");
-  ch.AddFile(file.c_str());
+  for (int i=1;i<argc;i++) {
+    cout << "+ Adding file " << argv[i] << endl;
+    ch.AddFile(argv[i]);
+  }
   chp.Init(&ch);
   chp.SlaveBegin(&ch);
   for(unsigned i=0; i<ch.GetEntries(); i++) {
