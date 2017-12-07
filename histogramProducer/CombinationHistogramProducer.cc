@@ -34,6 +34,7 @@ void CombinationHistogramProducer::initHistograms() {
 }
 
 void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, bool isSel) {
+  ptmiss_ = met->p.Pt();
   if (region == Region::eCR) {
     eControlHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
   } else if (region == Region::jCR) {
