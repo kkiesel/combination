@@ -111,9 +111,8 @@ CombinationHistogramProducer::CombinationHistogramProducer():
 void CombinationHistogramProducer::Init(TTree *tree)
 {
   fReader.SetTree(tree);
-
-  //inputName = fReader.GetTree()->GetCurrentFile()->GetName();
-  inputName = "outau.root";
+  tree->GetEntry(0); // to get current file
+  inputName = tree->GetCurrentFile()->GetName();
   isData = inputName.find("Run201") != string::npos;
   isSignal = inputName.find("SMS") != string::npos ||
              inputName.find("GMSB") != string::npos;
