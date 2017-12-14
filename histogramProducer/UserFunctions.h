@@ -482,19 +482,19 @@ int getNgenFromFile(TTreeReader& fReader, unsigned m1, unsigned m2) {
   int nGen = 0;
   string inputName = fReader.GetTree()->GetCurrentFile()->GetName();
   string cutFlowName = "TreeWriter/hCutFlow";
-  if (inputName.find("T5ttttZg") != string::npos) {
+  if (inputName.find("SMS-T5ttttZg") != string::npos) {
     cutFlowName += "T5ttttZg";
-  } else if (inputName.find("T5bbbbZg") != string::npos) {
+  } else if (inputName.find("SMS-T5bbbbZg") != string::npos) {
     cutFlowName += "T5bbbbZg";
-  } else if (inputName.find("T5qqqqHg") != string::npos) {
+  } else if (inputName.find("SMS-T5qqqqHg") != string::npos) {
     cutFlowName += "T5qqqqHg";
-  } else if (inputName.find("T5") != string::npos) {
+  } else if (inputName.find("SMS-T5") != string::npos) {
     cutFlowName += "T5Wg";
-  } else if (inputName.find("T6") != string::npos) {
+  } else if (inputName.find("SMS-T6") != string::npos) {
     cutFlowName += "T6Wg";
-  } else if (inputName.find("TChiWG") != string::npos) {
+  } else if (inputName.find("SMS-TChiWG") != string::npos) {
     cutFlowName += "TChiWG";
-  } else if (inputName.find("TChiNG") != string::npos) {
+  } else if (inputName.find("SMS-TChiNG") != string::npos) {
     cutFlowName += "TChiNG";
   } else if (inputName.find("GMSB") != string::npos) {
     cutFlowName += "GMSB";
@@ -508,4 +508,8 @@ int getNgenFromFile(TTreeReader& fReader, unsigned m1, unsigned m2) {
     cout << "Could not read cutFlow histogram " << cutFlowName << endl;
   }
   return nGen;
+}
+
+float mt(const TVector3& p1, const TVector3& p2) {
+  return TMath::Sqrt( 2*p1.Pt()*p2.Pt()*(1-TMath::Cos(p1.DeltaPhi(p2))));
 }

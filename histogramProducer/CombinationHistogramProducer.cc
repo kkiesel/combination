@@ -10,12 +10,14 @@ void CombinationHistogramProducer::initHistograms() {
   nGens_[sp_] = getNgenFromFile(fReader, *signal_m1, *signal_m2);
   nominalHists_[sp_] = map<Selection, TH2F>();
   eControlHists_[sp_] = map<Selection, TH2F>();
+  genEHists_[sp_] = map<Selection, TH2F>();
   jControlHists_[sp_] = map<Selection, map<float, TH2F>>();
   mcHists_[sp_] = map<Selection, map<Histogram, TH2F>>();
   weightedHists_[sp_] = map<Selection, map<unsigned, TH2F>>();
   for (const auto& sel : selectionNames) {
     nominalHists_.at(sp_)[sel.first] = hist;
     eControlHists_.at(sp_)[sel.first] = hist;
+    genEHists_.at(sp_)[sel.first] = hist;
 
     mcHists_.at(sp_)[sel.first] = map<Histogram, TH2F>();
     for (const auto& histo : histogramNames) {
@@ -41,6 +43,8 @@ void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, 
     for (auto &it : jControlHists_.at(sp_).at(sel)) {
       it.second.Fill(isSel?it.first*ptmiss_:-1, htg_, weight_);
     }
+  } else if (region == Region::genE) {
+    genEHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
   } else if (region == Region::sR) {
     nominalHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
     if (!isData) {
@@ -216,24 +220,42 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
 
   bool orthogonal = true;
   bool isGenEclean = true;
+  bool genE = false;
   if (selPhotons.size()) {
     auto g = selPhotons.at(0);
     auto dPhi = fabs(met->p.DeltaPhi(g->p));
     orthogonal = .3<dPhi && dPhi<2.84;
-    bool genE = genMatchToId(*g, *genParticles, 11);
+    genE = genMatchToId(*g, *genParticles, 11);
     isGenEclean = isData || isSignal || !genE;
   }
-  bool signalSel = !cutPrompt && selPhotons.size() && htg_ > 700 && (*hlt_photon90_ht600 || !isData) && orthogonal && isGenEclean;
+  bool signalSelwoGen = !cutPrompt && selPhotons.size() && htg_ > 700 && (*hlt_photon90_ht600 || !isData) && orthogonal;
+  bool signalSel = signalSelwoGen && isGenEclean;
+  bool signalGenE = signalSelwoGen && genE;
   fillHistograms(Selection::original, Region::sR, signalSel);
-  // todo : genE for electron closure
-/*
-  float mt = selPhotons.size() ? TMath::Sqrt( 2*selPhotons.at(0)->p.Pt()*met->p.Pt()*(1-TMath::Cos(selPhotons.at(0)->p.DeltaPhi(met->p)))) : 0;
+  if (signalGenE) fillHistograms(Selection::original, Region::genE, true);
+
+  float mtg = selPhotons.size() ? mt(met->p, selPhotons.at(0)->p) : 0;
+  float mtl = -1;
+  for (auto& p : *electrons) {
+    // todo r9 cut
+    if (p.isMedium && p.p.Pt()>25 && p.rIso < .1) {
+      mtl = mt(met->p, p.p);
+      break;
+    }
+  }
+  for (auto& p : *muons) {
+    if (p.p.Pt()>25 && p.rIso < .2) {
+      mtl = mt(met->p, p.p);
+      break;
+    }
+  }
+
   float st = met->p.Pt();
   for (auto& photon: *photons) {
     if (photon.isLoose && !photon.hasPixelSeed && photon.isEB() && photon.p.Pt()> 15) st += photon.p.Pt();
   }
-  bool st_selection = selPhotons.size() && selPhotons.at(0)->p.Pt()>180 && mt > 300 && st > 600;
-  bool lep_selection = mt > 100
+  bool st_selection = selPhotons.size() && selPhotons.at(0)->p.Pt()>180 && mtg > 300 && st > 600;
+  bool lep_selection = mtl > 100
     && count_if(photons->begin(), photons->end(), [] (const tree::Photon& p) { return p.isLoose && p.p.Pt()>35 && p.r9 >.5 && !p.hasPixelSeed && p.isEB();})
     && (count_if(electrons->begin(), electrons->end(), [] (const tree::Electron& p) { return p.isMedium && p.p.Pt()>25 && p.rIso < .1;}) // TOOD: r9 cut
        || count_if(muons->begin(), muons->end(), [] (const tree::Muon& p) { return p.p.Pt()>25 && p.rIso < .2;})); // TOOD: medium id
@@ -246,9 +268,9 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
   fillHistograms(Selection::bjet_cleaned, Region::sR, signalSel && !hasBtags);
   fillHistograms(Selection::dilepst_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection);
   fillHistograms(Selection::all_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection && !hasBtags);
-*/
+
   if (!selPhotons.size() && htg_ > 700 && (*hlt_ht600 || !isData)) {
-    fillHistograms(Selection::original, Region::jCR, false);
+    fillHistograms(Selection::original, Region::jCR, true);
   }
   resetSelection();
   /////////////////////////////////////////////////////////////////////////////
@@ -271,7 +293,7 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
     auto g = selPhotons.at(0);
     auto dPhi = fabs(met->p.DeltaPhi(g->p));
     orthogonal = .3<dPhi && dPhi<2.84;
-    if (!cutPrompt && orthogonal) fillHistograms(Selection::original, Region::eCR, false);
+    if (!cutPrompt && orthogonal) fillHistograms(Selection::original, Region::eCR, true);
   }
   resetSelection();
   return kTRUE;
@@ -310,6 +332,8 @@ void CombinationHistogramProducer::Terminate()
       nominalHists_.at(spIt.first).at(selIt.first).Write("nominal", TObject::kWriteDelete);
       eControlHists_.at(spIt.first).at(selIt.first).Scale(scale);
       eControlHists_.at(spIt.first).at(selIt.first).Write("eControl", TObject::kWriteDelete);
+      genEHists_.at(spIt.first).at(selIt.first).Scale(scale);
+      genEHists_.at(spIt.first).at(selIt.first).Write("genE", TObject::kWriteDelete);
       gDirectory->mkdir("jCR");
       gDirectory->mkdir("weights");
       gDirectory->mkdir("systematics");
@@ -367,7 +391,6 @@ int main(int argc, char** argv) {
   CombinationHistogramProducer chp;
   TChain ch("TreeWriter/eventTree");
   for (int i=1;i<argc;i++) {
-    cout << "+ Adding file " << argv[i] << endl;
     ch.AddFile(argv[i]);
   }
   chp.Init(&ch);

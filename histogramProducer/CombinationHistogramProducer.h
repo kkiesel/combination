@@ -26,7 +26,8 @@
 using namespace std;
 
 enum class Selection: char {
-  original, di_cleaned, lep_cleaned, st_cleaned, bjet_cleaned, dilepst_cleaned, all_cleaned
+  original, di_cleaned, lep_cleaned, st_cleaned, bjet_cleaned, dilepst_cleaned, all_cleaned,
+  original_ee
 };
 
 const map<Selection, string> selectionNames {
@@ -63,7 +64,7 @@ const map<Histogram, string> histogramNames {
 };
 
 enum class Region {
-  sR, eCR, jCR
+  sR, eCR, jCR, genE
 };
 
 typedef pair<UShort_t,UShort_t> SignalPoint;
@@ -165,6 +166,7 @@ class CombinationHistogramProducer : public TSelector {
 
   map<SignalPoint, map<Selection, TH2F>> nominalHists_; // data, mc, signal
   map<SignalPoint, map<Selection, TH2F>> eControlHists_; // data, mc, signal
+  map<SignalPoint, map<Selection, TH2F>> genEHists_;
   map<SignalPoint, map<Selection, map<float, TH2F>>> jControlHists_; // data, mc, signal
   map<SignalPoint, map<Selection, map<Histogram, TH2F>>> mcHists_; // signal, mc
   map<SignalPoint, map<Selection, map<unsigned, TH2F>>> weightedHists_; // signal, mc
