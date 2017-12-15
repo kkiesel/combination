@@ -269,6 +269,7 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
   fillHistograms(Selection::dilepst_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection);
   fillHistograms(Selection::all_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection && !hasBtags);
 
+  weight_ = *mc_weight * *pu_weight * *hlt_ht600_pre;
   if (!selPhotons.size() && htg_ > 700 && (*hlt_ht600 || !isData)) {
     fillHistograms(Selection::original, Region::jCR, true);
   }
@@ -365,6 +366,7 @@ void CombinationHistogramProducer::resetSelection() {
   selBJets.clear();
   selElectrons.clear();
   selMuons.clear();
+  weight_ = 0;
 }
 
 Bool_t CombinationHistogramProducer::Notify() {
