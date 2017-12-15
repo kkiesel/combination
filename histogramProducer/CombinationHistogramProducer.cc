@@ -7,7 +7,7 @@ void CombinationHistogramProducer::printEventId() {
 
 void CombinationHistogramProducer::initHistograms() {
   TH2F hist("", ";#it{p}_{T}^{miss} (GeV);#it{H}_{T}^{#gamma} (GeV)", 200, 0, 2000, 1, 700, 2000);
-  nGens_[sp_] = getNgenFromFile(fReader, *signal_m1, *signal_m2);
+  nGens_[sp_] = 0;
   nominalHists_[sp_] = map<Selection, TH2F>();
   eControlHists_[sp_] = map<Selection, TH2F>();
   genEHists_[sp_] = map<Selection, TH2F>();
@@ -94,7 +94,7 @@ CombinationHistogramProducer::CombinationHistogramProducer():
   pu_weight(fReader, "pu_weight"),
   mc_weight(fReader, "mc_weight"),
   pdf_weights(fReader, "pdf_weights"),
-  nGoodVertices(fReader, "nGoodVertices"),
+  nGoodVertices(fReader, "nGoodVertices"), // TODO: cut on nGoodVertices?
   genHt(fReader, "genHt"),
   nTruePV(fReader, "true_nPV"),
   nISR(fReader, "nISR"),
@@ -185,7 +185,7 @@ float CombinationHistogramProducer::getPhotonWeight(const tree::Photon& p) {
 
 Bool_t CombinationHistogramProducer::Process(Long64_t entry)
 {
-  fReader.SetLocalEntry(entry);
+  fReader.Next();
 
   if (genHt600 && *genHt>600) {
     return kTRUE;
@@ -369,12 +369,12 @@ void CombinationHistogramProducer::resetSelection() {
   weight_ = 0;
 }
 
-Bool_t CombinationHistogramProducer::Notify() {
+void CombinationHistogramProducer::FillNgen(const string& f) {
   for (auto& it: nGens_) {
-    it.second += getNgenFromFile(fReader, it.first.first, it.first.second);
+    it.second += getNgenFromFile(f, it.first.first, it.first.second);
   }
-  return kTRUE;
 }
+
 
 
 int main(int argc, char** argv) {
@@ -399,6 +399,9 @@ int main(int argc, char** argv) {
   chp.SlaveBegin(&ch);
   for(unsigned i=0; i<ch.GetEntries(); i++) {
     chp.Process(i);
+  }
+  for (int i=1;i<argc;i++) {
+    chp.FillNgen(argv[i]);
   }
   chp.SlaveTerminate();
   chp.Terminate();

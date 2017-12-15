@@ -79,8 +79,8 @@ class CombinationHistogramProducer : public TSelector {
   virtual void SlaveBegin(TTree *tree){};
   virtual Bool_t Process(Long64_t entry);
   virtual void Terminate();
-  virtual Bool_t Notify();
   virtual Int_t Version() const { return 2; }
+  virtual void FillNgen(const string& f);
 
   void initHistograms();
   void fillHistograms(Selection, Region, bool);

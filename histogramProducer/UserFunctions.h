@@ -478,9 +478,8 @@ bool unMatchedSuspiciousJet(const vector<tree::Jet>& jets, const vector<tree::Pa
   return false;
 }
 
-int getNgenFromFile(TTreeReader& fReader, unsigned m1, unsigned m2) {
+int getNgenFromFile(const string& inputName, unsigned m1, unsigned m2) {
   int nGen = 0;
-  string inputName = fReader.GetTree()->GetCurrentFile()->GetName();
   string cutFlowName = "TreeWriter/hCutFlow";
   if (inputName.find("SMS-T5ttttZg") != string::npos) {
     cutFlowName += "T5ttttZg";
@@ -501,7 +500,8 @@ int getNgenFromFile(TTreeReader& fReader, unsigned m1, unsigned m2) {
   }
   if (m1) cutFlowName += "_"+to_string(m1);
   if (m2) cutFlowName += "_"+to_string(m2);
-  TH1F* cutFlow = (TH1F*)fReader.GetTree()->GetCurrentFile()->Get(cutFlowName.c_str());
+  TFile f(inputName.c_str());
+  TH1F* cutFlow = (TH1F*)f.Get(cutFlowName.c_str());
   if (cutFlow) {
     nGen = cutFlow->GetBinContent(2);
   } else {
