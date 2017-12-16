@@ -29,7 +29,7 @@ void CombinationHistogramProducer::initHistograms() {
       weightedHists_.at(sp_).at(sel.first)[i] = hist;
     }
     jControlHists_.at(sp_)[sel.first] = map<float, TH2F>();
-    for (float i=0.85; i<1.2; i+= 0.01) {
+    for (float i=0.75; i<1.2; i+= 0.01) {
       jControlHists_.at(sp_).at(sel.first)[i] = hist;
     }
   }
