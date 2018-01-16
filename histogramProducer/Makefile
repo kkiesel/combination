@@ -9,7 +9,6 @@ EXE = CombinationHistogramProducer
 OBJ = CombinationHistogramProducer.o
 
 all: $(EXE) Makefile
-	@echo "Done"
 
 %.o: %.cc
 	g++ -o $@ $+ -c -O2 $(INCS) $(WARN) -std=c++11
