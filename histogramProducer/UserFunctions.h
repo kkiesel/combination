@@ -511,5 +511,13 @@ int getNgenFromFile(const string& inputName, unsigned m1, unsigned m2) {
 }
 
 float mt(const TVector3& p1, const TVector3& p2) {
+  // transverse mass
   return TMath::Sqrt( 2*p1.Pt()*p2.Pt()*(1-TMath::Cos(p1.DeltaPhi(p2))));
+}
+
+float minv(const TVector3& p1, const TVector3& p2) {
+  // invariant mass
+  TLorentzVector a(p1, p1.Mag());
+  TLorentzVector b(p2, p2.Mag());
+  return (a+b).M();
 }
