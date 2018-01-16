@@ -83,23 +83,17 @@ class CombinationHistogramProducer : public TSelector {
   virtual void FillNgen(const string& f);
 
   void initHistograms();
-  void fillHistograms(Selection, Region, bool);
-
+  void fillHistograms(Selection, Region, bool, float);
 
   void resetSelection();
   void defaultSelection();
-  void fillSelection(string const& s, float w, bool);
-  void fillSignalSelection(string const& s, float w);
-  void fillSelectedPhotons(const tree::Particle& p);
-  tree::Jet* matchedJet(const tree::Particle& p);
   float getPhotonWeight(const tree::Photon& p);
   void printEventId();
+  string id();
 
-  void initTriggerStudies();
-  void fillTriggerStudies();
+  bool isDiPhotonSel();
+  bool isLepSel();
 
-  void initUncut();
-  void fillUncut();
 
   TTreeReader fReader;
   TTreeReaderValue<std::vector<tree::Photon>> photons;
@@ -133,6 +127,7 @@ class CombinationHistogramProducer : public TSelector {
   TTreeReaderValue<Bool_t> hlt_ht600;
   TTreeReaderValue<Bool_t> hlt_ht800;
   TTreeReaderValue<Bool_t> hlt_el27;
+  TTreeReaderValue<Bool_t> hlt_diphoton;
   TTreeReaderValue<Int_t> hlt_ht600_pre;
 
   // signal scan

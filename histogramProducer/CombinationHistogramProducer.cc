@@ -5,6 +5,10 @@ void CombinationHistogramProducer::printEventId() {
   cout << *runNo << ":" << *lumNo << ":" << *evtNo << " in " << inputName << endl;
 }
 
+string CombinationHistogramProducer::id() {
+  return to_string(*runNo) + ":" + to_string(*lumNo) + ":" + to_string(*evtNo);
+}
+
 void CombinationHistogramProducer::initHistograms() {
   TH2F hist("", ";#it{p}_{T}^{miss} (GeV);#it{H}_{T}^{#gamma} (GeV)", 200, 0, 2000, 1, 700, 2000);
   nGens_[sp_] = 0;
@@ -35,7 +39,26 @@ void CombinationHistogramProducer::initHistograms() {
   }
 }
 
-void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, bool isSel) {
+void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, bool isSel, float bf=-1) {
+  float addWeight = 1.;
+  if (bf>=0 and bf<=1) {
+    // Reweight with different branching fraction (BF). Samples are assumed to
+    // be generated with bf=0.5
+    switch (*signal_nBinos) {
+      case 0:
+        addWeight *= 4*(1-bf)*(1-bf);
+        break;
+      case 1:
+        addWeight *= 2*(1-bf)*bf;
+        break;
+      case 2:
+        addWeight *= 4*bf*bf;
+        break;
+      default:
+        cout << "Do not know what to do with " << *signal_nBinos << endl;
+        break;
+    }
+  }
   ptmiss_ = met->p.Pt();
   if (region == Region::eCR) {
     eControlHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
@@ -46,6 +69,7 @@ void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, 
   } else if (region == Region::genE) {
     genEHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
   } else if (region == Region::sR) {
+//    if (isSel && 700 < htg_ && htg_ < 2000) cout << id() << "\tptmiss = " << ptmiss_ << "\tweight = " << weight_ << endl;
     nominalHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
     if (!isData) {
       for (auto &it : weightedHists_.at(sp_).at(sel)) {
@@ -103,6 +127,7 @@ CombinationHistogramProducer::CombinationHistogramProducer():
   evtNo(fReader, "evtNo"),
   hlt_photon90_ht600(fReader, "HLT_Photon90_CaloIdL_PFHT600_v"),
   hlt_ht600(fReader, "HLT_PFHT600_v"),
+  hlt_diphoton(fReader, "HLT_Diphoton30_18_R9Id_OR_IsoCaloId_AND_HE_R9Id_Mass90_v"),
   hlt_ht600_pre(fReader, "HLT_PFHT600_v_pre"),
   signal_nBinos(fReader, "signal_nBinos"),
   signal_m1(fReader, "signal_m1"),
@@ -183,10 +208,138 @@ float CombinationHistogramProducer::getPhotonWeight(const tree::Photon& p) {
   return weight;
 }
 
+bool CombinationHistogramProducer::isDiPhotonSel() {
+  if (isData and !*hlt_diphoton) return false;
+  float m = met->p.Pt();
+  if (m<100) return false;
+  vector<tree::Photon*> phos;
+  for (auto &p : *photons) {
+    if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005 && !p.hasPixelSeed && p.isEB()) {
+      phos.push_back(&p);
+    }
+  }
+  if (phos.size()<2) return false;
+  if (phos.at(0)->p.DeltaR(phos.at(1)->p) < .3 or minv(phos.at(0)->p,phos.at(1)->p) < 105) return false;
+  // lepton veto
+  for (auto& lep : *electrons) {
+    if (!lep.isLoose and lep.p.Pt() < 25) continue;
+    bool overlap = false;
+    for (auto& p : phos) { if (p->p.DeltaR(lep.p)>.3) overlap = true;}
+    if (overlap) continue;
+    return false;
+  }
+  for (auto& lep : *muons) {
+    if (lep.p.Pt() < 25 and lep.PFminiIso < 0.2) continue;
+    bool overlap = false;
+    for (auto& p : phos) { if (p->p.DeltaR(lep.p)>.3) overlap = true;}
+    if (overlap) continue;
+    return false;
+  }
+  return true;
+}
+
+
+bool CombinationHistogramProducer::isLepSel() {
+  // code copied from danilo
+
+  bool leptoVeto = false;
+  std::vector<tree::Electron const *> el_comb;
+  std::vector<tree::Muon const *> mu_comb;
+  tree::Photon* lead_pho;
+
+  for (auto g: *photons) {
+    if (g.p.Pt()>40 and g.isEB() and g.isLoose) {
+      lead_pho = &g;
+      leptoVeto = true;
+      break;
+    }
+  }
+
+  for (tree::Electron const &ele: *electrons) {
+     if (ele.p.Pt() < 25 || ele.isMedium == 0) { continue; }
+     if (fabs(ele.p.Eta()) < 1.4442) {
+        if (ele.r9 > 0.5 && ele.SigmaIEtaIEtaFull5x5 < 0.00998 &&
+              fabs(ele.dEtaAtVtx) < 0.00311 && fabs(ele.dPhiAtVtx) < 0.103 &&
+              ele.HoverE < 0.253 && ele.MissHits <= 1 && fabs(ele.EoverPInv) < 0.134 &&
+              ele.ConvVeto == 1 && ele.PFminiIso < 0.1) {
+                 leptoVeto = true;
+                 el_comb.push_back(&ele);
+        }
+     }
+     if (fabs(ele.p.Eta()) > 1.56 && fabs(ele.p.Eta()) < 2.5) {
+        if (ele.r9 > 0.8 && ele.SigmaIEtaIEtaFull5x5 < 0.0298 &&
+              fabs(ele.dEtaAtVtx) < 0.00609 && fabs(ele.dPhiAtVtx) < 0.045 &&
+              ele.HoverE < 0.0878 && ele.MissHits <= 1 && fabs(ele.EoverPInv) < 0.13 &&
+              ele.ConvVeto == 1 && ele.PFminiIso < 0.1) {
+                 leptoVeto = true;
+                 el_comb.push_back(&ele);
+        }
+     }
+  }
+  for (tree::Muon const &mu: *muons) {
+     if (mu.p.Pt() < 25 || mu.isMedium == 0) { continue; }
+     if (fabs(mu.p.Eta()) < 2.4 && mu.PFminiIso < 0.2 &&
+           fabs(mu.d0) < 0.05 && fabs(mu.dZ) < 0.1) {
+              leptoVeto = true;
+              mu_comb.push_back(&mu);
+     }
+  }
+  //leading lepton
+  tree::Particle const *leadLep;
+  bool leadLep_ele = false;
+  bool MuAndEle = false;
+  if (leptoVeto) {
+    if (el_comb.size() > 0) {
+      if (mu_comb.size() > 0) {
+        if (el_comb[0]->p.Pt() > mu_comb[0]->p.Pt()) {
+          leadLep = el_comb[0];
+          leadLep_ele = true;
+        } else {
+          leadLep = mu_comb[0];
+        }
+        MuAndEle = true;
+      } else {
+        leadLep = el_comb[0];
+        leadLep_ele = true;
+      }
+    } else {
+      leadLep = mu_comb[0];
+    }
+  }
+  //additional cuts from lepton analysis
+  float invmassPhoLep = 0;
+  float MT_LepMet = 0;
+  if (leptoVeto) {
+    if (leadLep->p.DeltaR(lead_pho->p) < 0.8) {
+      leptoVeto = false;
+    } else {
+      for (tree::Electron const &ele: *electrons) {
+        if (ele.p.DeltaR(lead_pho->p) < 0.3 && ele.p.Pt() > 2.0) leptoVeto = false;
+      }
+      for (tree::Muon const &mu: *muons) {
+        if (mu.p.DeltaR(lead_pho->p) < 0.3 && mu.p.Pt() > 2.0) leptoVeto = false;
+      }
+    }
+    if (leptoVeto) {
+      invmassPhoLep = minv(lead_pho->p, leadLep->p);
+      if (leadLep_ele && fabs(invmassPhoLep-91.1876) < 10) leptoVeto = false;
+    }
+    if (leptoVeto) {
+      if (MuAndEle) {
+        if (mt(el_comb[0]->p, met->p) < 100 && mt(mu_comb[0]->p, met->p) < 100) leptoVeto = false;
+      } else {
+        MT_LepMet = mt(leadLep->p, met->p);
+        if (MT_LepMet < 100) leptoVeto = false;
+      }
+    }
+  }
+  return leptoVeto;
+}
+
+
 Bool_t CombinationHistogramProducer::Process(Long64_t entry)
 {
   fReader.Next();
-
   if (genHt600 && *genHt>600) {
     return kTRUE;
   }
@@ -234,6 +387,7 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
   fillHistograms(Selection::original, Region::sR, signalSel);
   if (signalGenE) fillHistograms(Selection::original, Region::genE, true);
 
+  /*
   float mtg = selPhotons.size() ? mt(met->p, selPhotons.at(0)->p) : 0;
   float mtl = -1;
   for (auto& p : *electrons) {
@@ -273,6 +427,7 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
   if (!selPhotons.size() && htg_ > 700 && (*hlt_ht600 || !isData)) {
     fillHistograms(Selection::original, Region::jCR, true);
   }
+  */
   resetSelection();
   /////////////////////////////////////////////////////////////////////////////
   // electron sample
