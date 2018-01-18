@@ -429,15 +429,14 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         totStat = aux.addHists(gjetHist, eHist, zgHist, wgHist, tgHist)
         totSyst = aux.addHists(gjetSyst, eSyst, zgSyst, wgSyst, tgSyst)
 
-        #signal1 = aux.stdHist(t5wg_1600_100, dirDir+"/met", nBins)
-        #signal2 = aux.stdHist(t6gg_1750_1650, dirDir+"/met", nBins)
-        #signal2 = aux.stdHist(tchiwg_700, dirDir+"/met", nBins)
-        #for h in signal1, signal2:
-        #    aux.drawOpt(h, "signal")
+        signal1 = metHist(t5wg, "1600_100/{}/nominal".format(dirDir), nBins, lowEmht)
+        signal2 = metHist(t5wg, "1750_1650/{}/nominal".format(dirDir), nBins, lowEmht)
+        for h in signal1, signal2:
+            aux.drawOpt(h, "signal")
         #    h.Add(totStat)
-        #signal1.SetLineColor(ROOT.kMagenta+2)
-        #signal2.SetLineColor(ROOT.kMagenta)
-        #signal2.SetLineStyle(2)
+        signal1.SetLineColor(ROOT.kMagenta+2)
+        signal2.SetLineColor(ROOT.kMagenta)
+        signal2.SetLineStyle(2)
 
         #signal1_pre = aux.createHistoFromDatasetTree(t5wg_1600_100, "met*{}".format(info["shift"]), weight, nBins, "tr_jControl/simpleTree")
         #signal1_pre.Scale(info["scale"])
@@ -463,8 +462,8 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         m.add(dirHist, "Direct simulation")
     if "Closure" not in name:
 #        m.add(signal1_pre, "contamination")
-#        m.add(signal1, "T5Wg 1600 100")
-#        m.add(signal2, "T6gg 1750 1650")
+        m.add(signal1, "T5Wg 1600 100")
+        m.add(signal2, "T6gg 1750 1650")
         #m.add(signal2, "TChiWG 700")
         m.addStack(eHist, "e#rightarrow#gamma")
         m.addStack(zgHist, "#gammaZ")
@@ -547,7 +546,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         bw = dirHist.GetBinWidth(bin) if style.divideByBinWidth else 1
         dc.addBin(binName, int(round(dirHist.GetBinContent(bin)*bw)),
             {
-#                "signal": (signal1.GetBinContent(bin)-totStat.GetBinContent(bin))*bw,
+                "signal": (signal1.GetBinContent(bin)-totStat.GetBinContent(bin))*bw,
                 #"signal": (signal1.GetBinContent(bin)-totStat.GetBinContent(bin)-signal1_pre.GetBinContent(bin))*bw,
                 "gqcd": gjetHist.GetBinContent(bin)*bw,
                 "ele": eHist.GetBinContent(bin)*bw,
@@ -561,7 +560,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
                 "wgStat_"+binName: {"wg": getDatacardUncertFromHist(wgHist,bin)},
                 "zgStat_"+binName: {"zg": getDatacardUncertFromHist(zgHist,bin)},
                 "tgStat_"+binName: {"tg": getDatacardUncertFromHist(tgHist,bin)},
-#                "signalStat_"+binName: {"signal": getDatacardUncertFromHist(signal1,bin)},
+                "signalStat_"+binName: {"signal": getDatacardUncertFromHist(signal1,bin)},
                 "gqcdSyst": {"gqcd": getDatacardUncertFromHist(gjetSyst,bin)},
                 "eleSyst": {"ele": getDatacardUncertFromHist(eSyst,bin)},
                 "pdf": {
@@ -573,7 +572,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
                     "zg": getDatacardUncertFromHist(zgScaleUnc,bin),
                     "tg": getDatacardUncertFromHist(tgScaleUnc,bin)},
                 "lumi": {
-#                    "signal": 1.026,
+                    "signal": 1.026,
                     "wg": 1.026,
                     "zg": 1.026,
                     "tg": 1.026},
@@ -586,17 +585,17 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
                     "zg": getDatacardUncertFromHist(zgJesUnc,bin),
                     "tg": getDatacardUncertFromHist(tgJesUnc,bin)},
                 "dataMC": {
- #                   "signal": 1.05,
+                    "signal": 1.05,
                     "wg": 1.025,
                     "zg": 1.025,
                     "tg": 1.025},
                 "trigger": {
-#                    "signal": 1.004,
+                    "signal": 1.004,
                     "wg": 1.004,
                     "zg": 1.004,
                     "tg": 1.004},
-#                "isr": {"signal": 1.001},
-#                "genMet": {"signal": 1.001},
+                "isr": {"signal": 1.001},
+                "genMet": {"signal": 1.001},
                 # jes, jer splitting
             }
         )
