@@ -282,15 +282,22 @@ def gjetPredictionHist(dirHist, preSet, subSet, nBins, lowEmht=True, saveName=""
     fitScaleR = round(fitScale, 2)
     fitScaleUpR = round(fitScaleUp, 2)
     fitScaleDnR = round(fitScaleDn, 2)
-    if fitScaleUpR > 1.2:
+
+    # sanity check
+    minScales = float(min(scales))
+    maxScales = float(max(scales))
+    if fitScaleUpR > maxScales:
         print "Error: Fit scale Up = ", fitScaleUpR
-        fitScaleUpR = 1.2
-    if fitScaleDnR < 0.85:
+        fitScaleUpR = maxScales
+    if fitScaleDnR < minScales:
         print "Error: Fit scale Dn = ", fitScaleDnR
-        fitScaleDnR = 0.85
-    if fitScaleR < 0.85 or fitScaleR > 1.2:
+        fitScaleDnR = minScales
+    if fitScaleR > maxScales:
         print "Error: Fit scale    = ", fitScaleR
-        fitScaleR = 1.00
+        fitScaleR = maxScales
+    if fitScaleR < minScales:
+        print "Error: Fit scale    = ", fitScaleR
+        fitScaleR = minScales
 
     preHist = metHist(preSet, "0_0/{}/jCR/{:.6f}".format(preDirJet, fitScaleR), nBins, lowEmht)
     preHistUp = metHist(preSet, "0_0/{}/jCR/{:.6f}".format(preDirJet, fitScaleUpR), nBins, lowEmht)
@@ -370,6 +377,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
     if name == "electronClosure_highEMHT": nBins = [0, 50, 100, 150, 200, 250, 300, 350, 450, 600, 800]
 
     # direct stuff
+    if name == "qcdClosure" and not lowEmht: style.additionalPoissonUncertainty = True
     dirHist = metHist(dirSet, "0_0/{}/nominal".format(dirDir), nBins, lowEmht)
     if "electronClosure" in name:
         dirHist = metHist(dirSet, "0_0/{}/genE".format(dirDir), nBins, lowEmht)
@@ -378,9 +386,9 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
 
     if "electronClosure" not in name:
         if "qcdClosure" in name:
-            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, None, nBins, lowEmht, name, preDirJet="original")
+            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, None, nBins, lowEmht, name+"_"+dirDir, preDirJet="original")
         else:
-            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, zg+wg+ttg+wjets+ttjets_nlo+znunu, nBins, lowEmht, name, "original")
+            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, zg+wg+ttg+wjets+ttjets_nlo+znunu, nBins, lowEmht, name+"_"+dirDir, "original")
         print info
         gjetHist.SetLineColor(rwth.myLightBlue)
         gjetHist.GetXaxis().SetTitle("#it{p}_{T}^{miss} (GeV)")
@@ -430,7 +438,8 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         totSyst = aux.addHists(gjetSyst, eSyst, zgSyst, wgSyst, tgSyst)
 
         signal1 = metHist(t5wg, "1600_100/{}/nominal".format(dirDir), nBins, lowEmht)
-        signal2 = metHist(t5wg, "1750_1650/{}/nominal".format(dirDir), nBins, lowEmht)
+        signal2 = metHist(t6wg, "1750_1650/{}/nominalGG".format(dirDir), nBins, lowEmht)
+        signal2.Scale(4.) # only gg scan
         for h in signal1, signal2:
             aux.drawOpt(h, "signal")
         #    h.Add(totStat)
@@ -536,17 +545,17 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         r.draw(0., rMax, m.getStack(), True)
 
     aux.Label(sim= not dirSet==data, status="" if "allMC" not in name else "Private Work")
-    aux.save(name, normal=False, changeMinMax=False)
+    aux.save(name+"_"+dirDir, normal=False, changeMinMax=False)
 
-    if name == "final_lowEMHT": dc = limitTools.MyDatacard()
-    elif name == "final_highEMHT": dc = limitTools.MyDatacard("testDatacard.txt")
-    else: return
+    dataCardName = "dataCards/{}_{}.txt".format(name.replace("_lowEMHT", "").replace("_highEMHT",""), dirDir)
+    if lowEmht: dc = limitTools.MyDatacard()
+    else: dc = limitTools.MyDatacard(dataCardName)
     for bin in range(dirHist.GetNbinsX()-2, dirHist.GetNbinsX()+1):
         binName = "bin{}_{}".format(name.split("_")[1],bin)
         bw = dirHist.GetBinWidth(bin) if style.divideByBinWidth else 1
         dc.addBin(binName, int(round(dirHist.GetBinContent(bin)*bw)),
             {
-                "signal": (signal1.GetBinContent(bin)-totStat.GetBinContent(bin))*bw,
+                "signal": (signal1.GetBinContent(bin))*bw,
                 #"signal": (signal1.GetBinContent(bin)-totStat.GetBinContent(bin)-signal1_pre.GetBinContent(bin))*bw,
                 "gqcd": gjetHist.GetBinContent(bin)*bw,
                 "ele": eHist.GetBinContent(bin)*bw,
@@ -596,21 +605,27 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
                     "tg": 1.004},
                 "isr": {"signal": 1.001},
                 "genMet": {"signal": 1.001},
-                # jes, jer splitting
             }
         )
-    dc.write("testDatacard.txt")
+    dc.write(dataCardName, True)
 
 if __name__ == "__main__":
     ewk_highestHT = wjets1200+wjets2500+ttjets600+ttjets800+ttjets1200+ttjets2500
     gqcd_highestHT = gjets600dr+qcd2000
     gqcd_highestHT.label = "(#gamma)+jet"
-    #finalDistributionSignalHist("qcdClosure", True, gqcd, "original", gqcd)
-    #finalDistributionSignalHist("qcdClosure", False, gqcd_highestHT, "original", gqcd)
-    #finalDistributionSignalHist("electronClosure", True, ttjets_ht+wjets, "original")
-    #finalDistributionSignalHist("electronClosure", False, ewk_highestHT, "original")
-    #finalDistributionSignalHist("ee", True, data, "original_ee", dataHt)
-    #finalDistributionSignalHist("ee", False, data, "original_ee", dataHt)
-    finalDistributionSignalHist("final", True, data, "original", dataHt)
-    finalDistributionSignalHist("final", False, data, "original", dataHt)
+
+    selections = ["original", "all_cleaned", "di_cleaned", "lep_cleaned", "dilep_cleaned", "st_cleaned"]
+    selections = ["original"] #, "all_cleaned", "di_cleaned", "lep_cleaned", "dilep_cleaned", "st_cleaned"]
+
+
+    for selection in selections:
+        #finalDistributionSignalHist("qcdClosure", True, gqcd, selection, gqcd)
+        #finalDistributionSignalHist("qcdClosure", False, gqcd_highestHT, selection, gqcd_highestHT)
+        #finalDistributionSignalHist("electronClosure", True, ttjets_ht+wjets, selection)
+        #finalDistributionSignalHist("electronClosure", False, ewk_highestHT, selection)
+        #finalDistributionSignalHist("ee", True, data, "original_ee", dataHt)
+        #finalDistributionSignalHist("ee", False, data, "original_ee", dataHt)
+        #finalDistributionSignalHist("final", True, data, selection, dataHt)
+        finalDistributionSignalHist("final", False, data, selection, dataHt)
+
 
