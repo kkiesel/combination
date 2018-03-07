@@ -56,6 +56,10 @@ void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, 
     for (auto &it : jControlHists_.at(sp_).at(sel)) {
       it.second.Fill(isSel?it.first*ptmiss_:-1, htg_, weight_);
     }
+    if (sel==Selection::original and not sp_.first and not sp_.second) {
+      isLowEmht_ = htg_<2000;
+      jCRTree_original->Fill();
+    }
   } else if (region == Region::genE) {
     genEHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
   } else if (region == Region::sR) {
@@ -156,8 +160,8 @@ void CombinationHistogramProducer::Init(TTree *tree)
     puUp = "pileupWeightUp_mix_2016_25ns_SpringMC_PUScenarioV1_PoissonOOTPU";
     puDn = "pileupWeightDown_mix_2016_25ns_SpringMC_PUScenarioV1_PoissonOOTPU";
   }
-  weighters["puWeightUp"] = Weighter("../../CMSSW/treewriter/CMSSW_8_0_25/src/TreeWriter/PUreweighting/data/puWeights.root", puUp);
-  weighters["puWeightDn"] = Weighter("../../CMSSW/treewriter/CMSSW_8_0_25/src/TreeWriter/PUreweighting/data/puWeights.root", puDn);
+  weighters["puWeightUp"] = Weighter("../../CMSSW/treewriter/v22/CMSSW_8_0_26_patch1/src/TreeWriter/PUreweighting/data/puWeights.root", puUp);
+  weighters["puWeightDn"] = Weighter("../../CMSSW/treewriter/v22/CMSSW_8_0_26_patch1/src/TreeWriter/PUreweighting/data/puWeights.root", puDn);
   weighters.at("sf_photon_id_loose").fillOverflow2d();
   weighters.at("sf_photon_pixel").fillOverflow2d();
 
@@ -166,6 +170,11 @@ void CombinationHistogramProducer::Init(TTree *tree)
     || inputName.find("TTJets") != string::npos
     || inputName.find("WJetsToLNu") != string::npos
     || inputName.find("ZJetsToNuNu") != string::npos;
+
+  jCRTree_original = new TTree("jCRTree", "");
+  jCRTree_original->Branch("met", &ptmiss_);
+  jCRTree_original->Branch("weight", &weight_);
+  jCRTree_original->Branch("lowEMHT", &isLowEmht_, "lowEMHT/O");
 }
 
 void CombinationHistogramProducer::defaultSelection()
@@ -583,7 +592,8 @@ void CombinationHistogramProducer::Terminate()
       }
     }
   }
-
+  file.cd();
+  jCRTree_original->Write("simpleTree", TObject::kWriteDelete);
   file.Close();
   cout << "Created " << outputName << " in " << (time(NULL) - startTime)/60 << " min" << endl;
 }

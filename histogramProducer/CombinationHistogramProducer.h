@@ -169,6 +169,7 @@ class CombinationHistogramProducer : public TSelector {
   float weight_ = 1.;
   float htg_ = 0;
   float ptmiss_ = 0;
+  bool isLowEmht_ = true;
 
   map<SignalPoint, map<Selection, TH2F>> nominalHists_; // data, mc, signal
   map<SignalPoint, map<Selection, TH2F>> nominalHistsGG_; // signal
@@ -179,6 +180,8 @@ class CombinationHistogramProducer : public TSelector {
   map<SignalPoint, map<Selection, map<Histogram, TH2F>>> mcHists_; // signal, mc
   map<SignalPoint, map<Selection, map<unsigned, TH2F>>> weightedHists_; // signal, mc
   map<SignalPoint, int> nGens_;
+
+  TTree* jCRTree_original;
 
 //  ClassDef(CombinationHistogramProducer, 1) // not for root compilation
 };
