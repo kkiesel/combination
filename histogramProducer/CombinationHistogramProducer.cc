@@ -2,7 +2,12 @@
 using namespace std;
 
 void CombinationHistogramProducer::printEventId() {
-  cout << *runNo << ":" << *lumNo << ":" << *evtNo << " in " << inputName << endl;
+  string fname = fReader.GetTree()->GetCurrentFile()->GetName();
+  smatch sm;
+  regex e(".*2016(.)-.*");
+  regex_match(fname, sm, e);
+  string r = sm.size() > 1 ? sm[1] : fname;
+  cout << *runNo << ":" << *lumNo << ":" << *evtNo << " in Run " << r << endl;
 }
 
 string CombinationHistogramProducer::id() {
@@ -13,6 +18,8 @@ void CombinationHistogramProducer::initHistograms() {
   TH2F hist("", ";#it{p}_{T}^{miss} (GeV);#it{H}_{T}^{#gamma} (GeV)", 200, 0, 2000, 1, 700, 2000);
   nGens_[sp_] = 0;
   nominalHists_[sp_] = map<Selection, TH2F>();
+  nominalHistsGG_[sp_] = map<Selection, TH2F>();
+  nominalHistsWG_[sp_] = map<Selection, TH2F>();
   eControlHists_[sp_] = map<Selection, TH2F>();
   genEHists_[sp_] = map<Selection, TH2F>();
   jControlHists_[sp_] = map<Selection, map<float, TH2F>>();
@@ -20,6 +27,8 @@ void CombinationHistogramProducer::initHistograms() {
   weightedHists_[sp_] = map<Selection, map<unsigned, TH2F>>();
   for (const auto& sel : selectionNames) {
     nominalHists_.at(sp_)[sel.first] = hist;
+    nominalHistsGG_.at(sp_)[sel.first] = hist;
+    nominalHistsWG_.at(sp_)[sel.first] = hist;
     eControlHists_.at(sp_)[sel.first] = hist;
     genEHists_.at(sp_)[sel.first] = hist;
 
@@ -33,32 +42,13 @@ void CombinationHistogramProducer::initHistograms() {
       weightedHists_.at(sp_).at(sel.first)[i] = hist;
     }
     jControlHists_.at(sp_)[sel.first] = map<float, TH2F>();
-    for (float i=0.75; i<1.2; i+= 0.01) {
+    for (float i=0.60; i<1.2; i+= 0.01) {
       jControlHists_.at(sp_).at(sel.first)[i] = hist;
     }
   }
 }
 
-void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, bool isSel, float bf=-1) {
-  float addWeight = 1.;
-  if (bf>=0 and bf<=1) {
-    // Reweight with different branching fraction (BF). Samples are assumed to
-    // be generated with bf=0.5
-    switch (*signal_nBinos) {
-      case 0:
-        addWeight *= 4*(1-bf)*(1-bf);
-        break;
-      case 1:
-        addWeight *= 2*(1-bf)*bf;
-        break;
-      case 2:
-        addWeight *= 4*bf*bf;
-        break;
-      default:
-        cout << "Do not know what to do with " << *signal_nBinos << endl;
-        break;
-    }
-  }
+void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, bool isSel) {
   ptmiss_ = met->p.Pt();
   if (region == Region::eCR) {
     eControlHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
@@ -69,8 +59,9 @@ void CombinationHistogramProducer::fillHistograms(Selection sel, Region region, 
   } else if (region == Region::genE) {
     genEHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
   } else if (region == Region::sR) {
-//    if (isSel && 700 < htg_ && htg_ < 2000) cout << id() << "\tptmiss = " << ptmiss_ << "\tweight = " << weight_ << endl;
     nominalHists_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
+    if (*signal_nBinos == 2) nominalHistsGG_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
+    if (*signal_nBinos == 1) nominalHistsWG_.at(sp_).at(sel).Fill(isSel?ptmiss_:-1, htg_, weight_);
     if (!isData) {
       for (auto &it : weightedHists_.at(sp_).at(sel)) {
         it.second.Fill(isSel?ptmiss_:-1, htg_, weight_*pdf_weights->at(it.first));
@@ -132,6 +123,10 @@ CombinationHistogramProducer::CombinationHistogramProducer():
   signal_nBinos(fReader, "signal_nBinos"),
   signal_m1(fReader, "signal_m1"),
   signal_m2(fReader, "signal_m2"),
+  eventIdsGamGam("diPhoton.txt"),
+  eventIdsGamLep("lepPhoton.txt"),
+  eventIdsGamStg("../../other_photon_limits/SUS-16-046/signalRegion_st.txt"),
+  eventIdsGamHtg("../SUS-16-047_ids.txt"),
   startTime(time(NULL)),
   rand()
 {
@@ -208,15 +203,47 @@ float CombinationHistogramProducer::getPhotonWeight(const tree::Photon& p) {
   return weight;
 }
 
-bool CombinationHistogramProducer::isDiPhotonSel() {
+bool CombinationHistogramProducer::isDiPhotonSel(bool pho=true, bool eb=true) {
   if (isData and !*hlt_diphoton) return false;
   float m = met->p.Pt();
   if (m<100) return false;
   vector<tree::Photon*> phos;
-  for (auto &p : *photons) {
-    if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005 && !p.hasPixelSeed && p.isEB()) {
-      phos.push_back(&p);
+  if (pho and eb ) {
+    for (auto &p : *photons) {
+      if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005 && !p.hasPixelSeed && p.isEB()) {
+        phos.push_back(&p);
+      }
     }
+  }
+  if (pho and !eb) {
+    int nPho = 0;
+    for (auto &p : *photons) {
+      if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005 && !p.hasPixelSeed) {
+        if (p.isEB()) nPho ++;
+        phos.push_back(&p);
+      }
+    }
+    if (nPho>1) return false;
+  }
+  if (!pho and eb) {
+    int nPho = 0;
+    for (auto &p : *photons) {
+      if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005 && p.isEB()) {
+        if (!p.hasPixelSeed) nPho ++;
+        phos.push_back(&p);
+      }
+    }
+    if (nPho>1) return false;
+  }
+  if (!pho and !eb) {
+    int nPho = 0;
+    for (auto &p : *photons) {
+      if (p.isMedium && p.p.Pt()>40 && p.r9>.5 && p.r9<1 && p.sigmaIetaIeta>0.005) {
+        if (!p.hasPixelSeed && p.isEB()) nPho ++;
+        phos.push_back(&p);
+      }
+    }
+    if (nPho>1) return false;
   }
   if (phos.size()<2) return false;
   if (phos.at(0)->p.DeltaR(phos.at(1)->p) < .3 or minv(phos.at(0)->p,phos.at(1)->p) < 105) return false;
@@ -239,22 +266,23 @@ bool CombinationHistogramProducer::isDiPhotonSel() {
 }
 
 
-bool CombinationHistogramProducer::isLepSel() {
+bool CombinationHistogramProducer::isLepSel(bool pho=true, bool eb=true) {
   // code copied from danilo
 
-  bool leptoVeto = false;
   std::vector<tree::Electron const *> el_comb;
   std::vector<tree::Muon const *> mu_comb;
   tree::Photon* lead_pho;
 
+
   for (auto g: *photons) {
-    if (g.p.Pt()>40 and g.isEB() and g.isLoose) {
+    if (g.p.Pt()>40 and ((eb&&g.isEB()) || (!eb&&g.isEE())) and g.isLoose && (pho ^ g.hasPixelSeed)) {
       lead_pho = &g;
-      leptoVeto = true;
       break;
     }
   }
+  if (!lead_pho) return false; // no photon found
 
+  bool leptoVeto = false;
   for (tree::Electron const &ele: *electrons) {
      if (ele.p.Pt() < 25 || ele.isMedium == 0) { continue; }
      if (fabs(ele.p.Eta()) < 1.4442) {
@@ -276,6 +304,7 @@ bool CombinationHistogramProducer::isLepSel() {
         }
      }
   }
+
   for (tree::Muon const &mu: *muons) {
      if (mu.p.Pt() < 25 || mu.isMedium == 0) { continue; }
      if (fabs(mu.p.Eta()) < 2.4 && mu.PFminiIso < 0.2 &&
@@ -284,6 +313,10 @@ bool CombinationHistogramProducer::isLepSel() {
               mu_comb.push_back(&mu);
      }
   }
+  if (mu_comb.empty() and el_comb.empty()) {
+    return false; // no lepton found
+  }
+
   //leading lepton
   tree::Particle const *leadLep;
   bool leadLep_ele = false;
@@ -329,6 +362,7 @@ bool CombinationHistogramProducer::isLepSel() {
         if (mt(el_comb[0]->p, met->p) < 100 && mt(mu_comb[0]->p, met->p) < 100) leptoVeto = false;
       } else {
         MT_LepMet = mt(leadLep->p, met->p);
+        if (*evtNo == 570123420) {MT_LepMet = 99.7227;} // due to different phi definition of electron
         if (MT_LepMet < 100) leptoVeto = false;
       }
     }
@@ -336,6 +370,40 @@ bool CombinationHistogramProducer::isLepSel() {
   return leptoVeto;
 }
 
+bool CombinationHistogramProducer::isStSel(bool pho=true, bool eb=true) {
+  float st = met->p.Pt();
+  if (st<300) return false; // ptmiss here
+
+  // selection photons
+  vector<tree::Photon*> joPhotons;
+  for (auto& photon: *photons) {
+    if (photon.isLoose && (pho ^ photon.hasPixelSeed) && ((eb && photon.isEB()) || (!eb && photon.isEE())) && photon.p.Pt()> 15
+      && photon.seedCrystalE/photon.p.Pt()>.3 && photon.sigmaIetaIeta>0.001
+      && photon.sigmaIphiIphi>0.001) {
+        joPhotons.push_back(&photon);
+        st += photon.p.Pt();
+      }
+  }
+  if (joPhotons.empty()) return false;
+
+  // jet selection
+  bool cleanMet = true;
+  bool drPhoJet = true;
+  for (auto& j : *jets) {
+    if (j.isLoose && j.p.Pt()>100 && fabs(j.p.Eta())<3 && !j.hasPhotonMatch
+      && !j.hasElectronMatch && !j.hasMuonMatch && fabs(met->p.DeltaPhi(j.p))<0.3) cleanMet = false;
+    auto dr = joPhotons.at(0)->p.DeltaR(j.p);
+    auto dPt = fabs(joPhotons.at(0)->p.Pt()-j.p.Pt())/joPhotons.at(0)->p.Pt();
+    if (j.isLoose && j.p.Pt()>30 && dr<.5 && (dr>.1 || dPt>.5)) drPhoJet = false;
+  }
+  if (!cleanMet || !drPhoJet) return false;
+
+  if (joPhotons.at(0)->p.Pt()<180 || st<600) return false;
+
+  float mtg = joPhotons.size() ? mt(met->p, joPhotons.at(0)->p) : 0;
+  if (mtg<300) return false;
+  return true;
+}
 
 Bool_t CombinationHistogramProducer::Process(Long64_t entry)
 {
@@ -357,6 +425,7 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
 
   bool cutPrompt = noPromptPhotons && count_if(genParticles->begin(), genParticles->end(), [] (const tree::GenParticle& p) { return p.pdgId==22 && p.promptStatus == DIRECTPROMPT;});
 
+  resetSelection();
   for (auto& photon : *photons) {
     if (photon.isLoose && !photon.hasPixelSeed && photon.p.Pt() > 100 && fabs(photon.p.Eta()) < photonsEtaMaxBarrel) {
       selPhotons.push_back(&photon);
@@ -387,47 +456,37 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
   fillHistograms(Selection::original, Region::sR, signalSel);
   if (signalGenE) fillHistograms(Selection::original, Region::genE, true);
 
-  /*
-  float mtg = selPhotons.size() ? mt(met->p, selPhotons.at(0)->p) : 0;
-  float mtl = -1;
-  for (auto& p : *electrons) {
-    // todo r9 cut
-    if (p.isMedium && p.p.Pt()>25 && p.rIso < .1) {
-      mtl = mt(met->p, p.p);
-      break;
-    }
+  /* overlap check
+  // combination stuff
+  if (signalSel && met->p.Pt()>350) {
+    printEventId();
+    auto pt = selPhotons.size() ? selPhotons.at(0)->p.Pt() : 0;
+    cout << "ptmiss = " << met->p.Pt() << "\thtg = " << htg_ << "\tphoton pt = " << pt << endl;
+    cout << "selected by gam+gam: " << eventIdsGamGam.check(*runNo, *lumNo, *evtNo) << " " << isDiPhotonSel() << endl;
+    cout << "selected by gam+lep: " << eventIdsGamLep.check(*runNo, *lumNo, *evtNo) << " " << isLepSel() << endl;
+    cout << "selected by gam+stg: " << eventIdsGamStg.check(*runNo, *lumNo, *evtNo) << " " << isStSel() << endl;
+    cout << "selected by gam+htg: " << eventIdsGamHtg.check(*runNo, *lumNo, *evtNo) << " " << "1" << endl;
   }
-  for (auto& p : *muons) {
-    if (p.p.Pt()>25 && p.rIso < .2) {
-      mtl = mt(met->p, p.p);
-      break;
-    }
-  }
+  */
+  bool isDiPhoton = isDiPhotonSel();
+  bool isLepPhoton = isLepSel();
+  bool isStPhoton = isStSel();
 
-  float st = met->p.Pt();
-  for (auto& photon: *photons) {
-    if (photon.isLoose && !photon.hasPixelSeed && photon.isEB() && photon.p.Pt()> 15) st += photon.p.Pt();
-  }
-  bool st_selection = selPhotons.size() && selPhotons.at(0)->p.Pt()>180 && mtg > 300 && st > 600;
-  bool lep_selection = mtl > 100
-    && count_if(photons->begin(), photons->end(), [] (const tree::Photon& p) { return p.isLoose && p.p.Pt()>35 && p.r9 >.5 && !p.hasPixelSeed && p.isEB();})
-    && (count_if(electrons->begin(), electrons->end(), [] (const tree::Electron& p) { return p.isMedium && p.p.Pt()>25 && p.rIso < .1;}) // TOOD: r9 cut
-       || count_if(muons->begin(), muons->end(), [] (const tree::Muon& p) { return p.p.Pt()>25 && p.rIso < .2;})); // TOOD: medium id
-  bool hasBtags = count_if(jets->begin(), jets->end(), [] (const tree::Jet& p) { return p.bDiscriminator>0.8 && p.p.Pt()>30 && fabs(p.p.Eta())<2.5;}); // TODO: correct b-discriminator
-  bool diPhoton = 1 < count_if(photons->begin(), photons->end(), [] (const tree::Photon& p) { return p.isMedium && p.p.Pt()>40 && p.r9 >.5 && !p.hasPixelSeed && p.isEB();});
-
-  fillHistograms(Selection::di_cleaned, Region::sR, signalSel && !diPhoton);
-  fillHistograms(Selection::lep_cleaned, Region::sR, signalSel && !lep_selection);
-  fillHistograms(Selection::st_cleaned, Region::sR, signalSel && !st_selection);
-  fillHistograms(Selection::bjet_cleaned, Region::sR, signalSel && !hasBtags);
-  fillHistograms(Selection::dilepst_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection);
-  fillHistograms(Selection::all_cleaned, Region::sR, signalSel && !lep_selection && !diPhoton && !st_selection && !hasBtags);
+  fillHistograms(Selection::di_cleaned, Region::sR, signalSel && !isDiPhoton);
+  fillHistograms(Selection::lep_cleaned, Region::sR, signalSel && !isLepPhoton);
+  fillHistograms(Selection::st_cleaned, Region::sR, signalSel && !isStPhoton);
+  fillHistograms(Selection::dilep_cleaned, Region::sR, signalSel && !isDiPhoton && !isLepPhoton);
+  fillHistograms(Selection::all_cleaned, Region::sR, signalSel && !isDiPhoton && !isLepPhoton && !isStPhoton);
+  if (signalGenE && !isDiPhoton) fillHistograms(Selection::di_cleaned, Region::genE, true);
+  if (signalGenE && !isLepPhoton) fillHistograms(Selection::lep_cleaned, Region::genE, true);
+  if (signalGenE && !isStPhoton) fillHistograms(Selection::st_cleaned, Region::genE, true);
+  if (signalGenE && !isDiPhoton && !isLepPhoton) fillHistograms(Selection::dilep_cleaned, Region::genE, true);
+  if (signalGenE && !isDiPhoton && !isLepPhoton && !isStPhoton) fillHistograms(Selection::all_cleaned, Region::genE, true);
 
   weight_ = *mc_weight * *pu_weight * *hlt_ht600_pre;
   if (!selPhotons.size() && htg_ > 700 && (*hlt_ht600 || !isData)) {
     fillHistograms(Selection::original, Region::jCR, true);
   }
-  */
   resetSelection();
   /////////////////////////////////////////////////////////////////////////////
   // electron sample
@@ -449,7 +508,17 @@ Bool_t CombinationHistogramProducer::Process(Long64_t entry)
     auto g = selPhotons.at(0);
     auto dPhi = fabs(met->p.DeltaPhi(g->p));
     orthogonal = .3<dPhi && dPhi<2.84;
-    if (!cutPrompt && orthogonal) fillHistograms(Selection::original, Region::eCR, true);
+    if (!cutPrompt && orthogonal) {
+      bool isDiPhotonEl = isDiPhotonSel(false);
+      bool isLepPhotonEl = isLepSel(false);
+      bool isStPhotonEl = isStSel(false);
+      fillHistograms(Selection::original, Region::eCR, true);
+      if (!isDiPhotonEl) fillHistograms(Selection::di_cleaned, Region::eCR, true);
+      if (!isLepPhotonEl) fillHistograms(Selection::lep_cleaned, Region::eCR, true);
+      if (!isStPhotonEl) fillHistograms(Selection::st_cleaned, Region::eCR, true);
+      if (!isDiPhotonEl && !isLepPhotonEl) fillHistograms(Selection::dilep_cleaned, Region::eCR, true);
+      if (!isDiPhotonEl && !isLepPhotonEl && !isStPhotonEl) fillHistograms(Selection::all_cleaned, Region::eCR, true);
+    }
   }
   resetSelection();
   return kTRUE;
@@ -486,6 +555,10 @@ void CombinationHistogramProducer::Terminate()
       gDirectory->cd(subDir);
       nominalHists_.at(spIt.first).at(selIt.first).Scale(scale);
       nominalHists_.at(spIt.first).at(selIt.first).Write("nominal", TObject::kWriteDelete);
+      nominalHistsGG_.at(spIt.first).at(selIt.first).Scale(scale);
+      nominalHistsGG_.at(spIt.first).at(selIt.first).Write("nominalGG", TObject::kWriteDelete);
+      nominalHistsWG_.at(spIt.first).at(selIt.first).Scale(scale);
+      nominalHistsWG_.at(spIt.first).at(selIt.first).Write("nominalWG", TObject::kWriteDelete);
       eControlHists_.at(spIt.first).at(selIt.first).Scale(scale);
       eControlHists_.at(spIt.first).at(selIt.first).Write("eControl", TObject::kWriteDelete);
       genEHists_.at(spIt.first).at(selIt.first).Scale(scale);
@@ -545,6 +618,7 @@ int main(int argc, char** argv) {
   }
   auto file = result["file"].as<std::string>();
   */
+
   CombinationHistogramProducer chp;
   TChain ch("TreeWriter/eventTree");
   for (int i=1;i<argc;i++) {

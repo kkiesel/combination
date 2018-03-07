@@ -21,23 +21,27 @@
 #include "TreeParticles.hpp"
 #include "UserFunctions.h"
 #include "Weighter.h"
+#include "EventIdCheck.h"
 #include "cxxopts/include/cxxopts.hpp"
 
 using namespace std;
 
 enum class Selection: char {
-  original, di_cleaned, lep_cleaned, st_cleaned, bjet_cleaned, dilepst_cleaned, all_cleaned,
-  original_ee
+  original, di_cleaned, lep_cleaned, st_cleaned, dilep_cleaned, all_cleaned,
+  original_ee, all_cleaned_ee,
+  all_cleaned_gg
 };
 
 const map<Selection, string> selectionNames {
   {Selection::original, "original"},
   {Selection::di_cleaned, "di_cleaned"},
   {Selection::lep_cleaned, "lep_cleaned"},
+  {Selection::dilep_cleaned, "dilep_cleaned"},
   {Selection::st_cleaned, "st_cleaned"},
-  {Selection::bjet_cleaned, "bjet_cleaned"},
-  {Selection::dilepst_cleaned, "dilepst_cleaned"},
-  {Selection::all_cleaned, "all_cleaned"}
+  {Selection::all_cleaned, "all_cleaned"},
+  {Selection::original_ee, "original_ee"},
+  {Selection::all_cleaned_ee, "all_cleaned_ee"},
+  {Selection::all_cleaned_gg, "all_cleaned_gg"}
 };
 
 enum class Histogram {
@@ -83,7 +87,7 @@ class CombinationHistogramProducer : public TSelector {
   virtual void FillNgen(const string& f);
 
   void initHistograms();
-  void fillHistograms(Selection, Region, bool, float);
+  void fillHistograms(Selection, Region, bool);
 
   void resetSelection();
   void defaultSelection();
@@ -91,8 +95,9 @@ class CombinationHistogramProducer : public TSelector {
   void printEventId();
   string id();
 
-  bool isDiPhotonSel();
-  bool isLepSel();
+  bool isDiPhotonSel(bool, bool);
+  bool isLepSel(bool, bool);
+  bool isStSel(bool, bool);
 
 
   TTreeReader fReader;
@@ -135,6 +140,12 @@ class CombinationHistogramProducer : public TSelector {
   TTreeReaderValue<UShort_t> signal_m1;
   TTreeReaderValue<UShort_t> signal_m2;
 
+  // Event ids
+  EventIdCheck eventIdsGamGam;
+  EventIdCheck eventIdsGamLep;
+  EventIdCheck eventIdsGamStg;
+  EventIdCheck eventIdsGamHtg;
+
   bool electroweak;
   bool isData;
   bool isSignal;
@@ -160,6 +171,8 @@ class CombinationHistogramProducer : public TSelector {
   float ptmiss_ = 0;
 
   map<SignalPoint, map<Selection, TH2F>> nominalHists_; // data, mc, signal
+  map<SignalPoint, map<Selection, TH2F>> nominalHistsGG_; // signal
+  map<SignalPoint, map<Selection, TH2F>> nominalHistsWG_; // signal
   map<SignalPoint, map<Selection, TH2F>> eControlHists_; // data, mc, signal
   map<SignalPoint, map<Selection, TH2F>> genEHists_;
   map<SignalPoint, map<Selection, map<float, TH2F>>> jControlHists_; // data, mc, signal
