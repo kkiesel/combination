@@ -354,21 +354,6 @@ def getDatacardUncertFromHist(h,b):
     c = h.GetBinContent(b)
     return 1.+max(0,h.GetBinError(b)/c if c else 0)
 
-def onlyPositiveContents(h):
-    for b in aux.loopH(h):
-        if h.GetBinContent(b)<0: h.SetBinContent(b,0)
-
-def metHist(dataset, name, binning=None, lowEmht=True):
-    h = dataset.getHist(name)
-    if not h: return
-    if isinstance(h, ROOT.TH2):
-        if lowEmht: h = h.ProjectionX(aux.randomName(), 1, 1)
-        else:       h = h.ProjectionX(aux.randomName(), 2, 2)
-    if binning: h = aux.rebin(h, binning)
-    aux.appendFlowBin(h, False)
-    h.SetYTitle(aux.getYAxisTitle(h))
-    return h
-
 def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
     name += "_lowEMHT" if lowEmht else "_highEMHT"
     style.divideByBinWidth = True
@@ -470,10 +455,8 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
     else:
         m.add(dirHist, "Direct simulation")
     if "Closure" not in name:
-#        m.add(signal1_pre, "contamination")
         m.add(signal1, "T5Wg 1600 100")
         m.add(signal2, "T6gg 1750 1650")
-        #m.add(signal2, "TChiWG 700")
         m.addStack(eHist, "e#rightarrow#gamma")
         m.addStack(zgHist, "#gammaZ")
         m.addStack(tgHist, "#gammat#bar{t}")
@@ -625,7 +608,7 @@ if __name__ == "__main__":
         #finalDistributionSignalHist("electronClosure", False, ewk_highestHT, selection)
         #finalDistributionSignalHist("ee", True, data, "original_ee", dataHt)
         #finalDistributionSignalHist("ee", False, data, "original_ee", dataHt)
-        #finalDistributionSignalHist("final", True, data, selection, dataHt)
+        finalDistributionSignalHist("final", True, data, selection, dataHt)
         finalDistributionSignalHist("final", False, data, selection, dataHt)
 
 
