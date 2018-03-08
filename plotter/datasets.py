@@ -71,6 +71,26 @@ class Dataset:
             else: h0 = h
         return h0
 
+    def getHistFromTree(self, variable, weight, nBins, tname="simpleTree"):
+        h0 = None
+        for i in range(len(self.files)):
+            tree = ROOT.TChain(tname)
+            tree.AddFile(self.files[i])
+            h = aux.createHistoFromTree(tree, variable, weight, nBins)
+            if isinstance(h, ROOT.TH1):
+                if self.xsecs[i]:
+                    if style.additionalPoissonUncertainty:
+                        aux.addPoissonUncertainty(h)
+                    if type(self.xsecs[i]) == str:
+                        mass = int(name.split("/")[0].split("_")[0])
+                        self.xsecs[i] = aux.getXsecInfoSMS(mass, self.xsecs[i])[0]
+                    h.Scale(aux.intLumi * self.xsecs[i])
+                h.SetLineColor(self.color)
+                h.SetMarkerColor(self.color)
+            if h0: h0.Add(h)
+            else: h0 = h
+        return h0
+
 data = Dataset("SinglePhoton_Run2016B-03Feb2017_ver2-v2", 0, ROOT.kBlack) \
     + Dataset("SinglePhoton_Run2016C-03Feb2017-v1", 0, ROOT.kBlack) \
     + Dataset("SinglePhoton_Run2016D-03Feb2017-v1", 0, ROOT.kBlack) \
