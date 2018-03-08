@@ -554,8 +554,11 @@ void CombinationHistogramProducer::Terminate()
   TFile file(outputName.c_str(), "RECREATE");
 
   for (auto& spIt : nominalHists_) {
-    auto dir = (to_string(spIt.first.first) + "_" + to_string(spIt.first.second));
     float scale = isData ? 1 : 1./nGens_.at(spIt.first);
+    file.cd();
+    jCRTree_original->SetWeight(scale);
+    jCRTree_original->Write("simpleTree", TObject::kWriteDelete);
+    auto dir = (to_string(spIt.first.first) + "_" + to_string(spIt.first.second));
     file.mkdir(dir.c_str());
     for (auto& selIt : spIt.second) {
       auto subDir = selectionNames.at(selIt.first).c_str();
@@ -592,8 +595,6 @@ void CombinationHistogramProducer::Terminate()
       }
     }
   }
-  file.cd();
-  jCRTree_original->Write("simpleTree", TObject::kWriteDelete);
   file.Close();
   cout << "Created " << outputName << " in " << (time(NULL) - startTime)/60 << " min" << endl;
 }
