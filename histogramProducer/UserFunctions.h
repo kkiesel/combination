@@ -500,6 +500,11 @@ int getNgenFromFile(const string& inputName, unsigned m1, unsigned m2) {
   }
   if (m1) cutFlowName += "_"+to_string(m1);
   if (m2) cutFlowName += "_"+to_string(m2);
+
+  if (inputName.find("GGM") != string::npos) {
+    cutFlowName = "TreeWriter/hCutFlowGGM_M1"+to_string(m1)+"_M2"+to_string(m2);
+  }
+
   TFile f(inputName.c_str());
   TH1F* cutFlow = (TH1F*)f.Get(cutFlowName.c_str());
   if (cutFlow) {
