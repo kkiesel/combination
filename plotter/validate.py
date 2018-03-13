@@ -88,11 +88,20 @@ def validateSignalScan(scanName, point):
     print [a*weight for a in acceptances]
     print
 
+def validateHistVsTree(dset, tname, hname):
+    lowEMHT = False
+    weight = "weight*lowEMHT" if lowEMHT else "weight*!lowEMHT"
+    htree = dset.getHistFromTree("met", weight, nBins=range(0,1001,10))
+    hist = metHist(dset, hname, range(0,1001,10), lowEMHT)
 
-
+    print "First 50 bin contents for histogram from tree (left) and direct hist (right)"
+    for b in range(50):
+        print htree.GetBinContent(b), hist.GetBinContent(b)
 
 
 if __name__ == "__main__":
+    #validateHistVsTree(znunu800, "simpleTree", "0_0/original/jCR/1.000000")
+    #validateHistVsTree(dset, "simpleTree", "0_0/original/jCR/1.000000")
     #validateHist()
-    validateSignalScan("SMS-T5Wg", "1600_100")
-    validateSignalScan("SMS-T6Wg", "1600_100")
+    #validateSignalScan("SMS-T5Wg", "1600_100")
+    #validateSignalScan("SMS-T6Wg", "1600_100")
