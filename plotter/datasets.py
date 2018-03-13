@@ -229,8 +229,10 @@ t6gg_1750_1650.label = "T6gg 1750 1650"
 t6gg_1300_600 = Dataset("SMS-T6gg_1300_600", 0.0086557, ROOT.kRed+4, "")
 t6gg_1100_600 = Dataset("SMS-T6gg_1100_600", 0.0313372, ROOT.kRed+4, "")
 
-t5wg = Dataset("SMS-T5Wg", "data/xSec_SMS_Gluino_13TeV.pkl") + Dataset("SMS-T5Wg_mGo2150To2500", "data/xSec_SMS_Gluino_13TeV.pkl")
-t6wg = Dataset("SMS-T6Wg", "data/xSec_SMS_Squark_13TeV.pkl") + Dataset("SMS-T5Wg_mSq1850To2150", "data/xSec_SMS_Squark_13TeV.pkl")
+t5wg = Dataset("SMS-T5Wg", "data/xSec_SMS_Gluino_13TeV.pkl")
+t6wg = Dataset("SMS-T6Wg", "data/xSec_SMS_Squark_13TeV.pkl")
+t5wg_ext = Dataset("SMS-T5Wg_mGo2150To2500", "data/xSec_SMS_Gluino_13TeV.pkl")
+t6wg_ext = Dataset("SMS-T5Wg_mSq1850To2150", "data/xSec_SMS_Squark_13TeV.pkl")
 
 tchiwg_700 = Dataset("SMS-TChiWG_700", 9.51032/1000, ROOT.kRed+4, "")
 
