@@ -132,5 +132,5 @@ print toProcess
 
 files = [dir+x for x in toProcess]
 files.sort(key=os.path.getsize, reverse=True)
-p = multiprocessing.Pool()
+p = multiprocessing.Pool(4)
 p.map(run, files)
