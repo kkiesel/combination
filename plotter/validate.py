@@ -94,13 +94,14 @@ def validateHistVsTree(dset, tname, hname):
     htree = dset.getHistFromTree("met", weight, nBins=range(0,1001,10))
     hist = metHist(dset, hname, range(0,1001,10), lowEMHT)
 
-    print "First 50 bin contents for histogram from tree (left) and direct hist (right)"
-    for b in range(50):
+    print "First 30 bin contents for histogram from tree (left) and direct hist (right)"
+    for b in range(30):
         print htree.GetBinContent(b), hist.GetBinContent(b)
+        #print htree.GetBinContent(b)/ hist.GetBinContent(b) if hist.GetBinContent(b) else 1
 
 
 if __name__ == "__main__":
-    #validateHistVsTree(znunu800, "simpleTree", "0_0/original/jCR/1.000000")
+    validateHistVsTree(gjets_dr, "simpleTree", "0_0/original/jCR/1.000000")
     #validateHistVsTree(dset, "simpleTree", "0_0/original/jCR/1.000000")
     #validateHist()
     #validateSignalScan("SMS-T5Wg", "1600_100")
