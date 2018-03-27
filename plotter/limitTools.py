@@ -289,6 +289,20 @@ class MyDatacard(Datacard):
                 totRate += 0 if process == "signal" else rate
             self.obs[binName] = round(totRate)
 
+    def removeBin(self, bname):
+        self.bins.remove(bname)
+        del self.obs[bname]
+        self.keyline = []
+        self.exp = {}
+        #self.systs = [(x, False, 'lnN', [], {}) for x in "lumi", "jec", "pdf", "gqcdSyst", "eleSyst", "wgSyst", "zgSyst", "ttgSyst"]
+        self.systs = []
+
+
+    def removeAllBinsExcept(self, bname):
+        bnames = self.bins
+        for b in bnames:
+            if b != bname: self.removeBin(b)
+
 class Limit:
     def __init__(self, datacardname):
         self.datacardname = datacardname

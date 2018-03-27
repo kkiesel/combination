@@ -63,8 +63,9 @@ class Dataset:
                         aux.addPoissonUncertainty(h)
                     if type(self.xsecs[i]) == str:
                         mass =int(name.split("/")[0].split("_")[0])
-                        self.xsecs[i] = aux.getXsecInfoSMS(mass, self.xsecs[i])[0]
-                    h.Scale(aux.intLumi * self.xsecs[i])
+                        xsec = aux.getXsecInfoSMS(mass, self.xsecs[i])[0]
+                    else: xsec = self.xsecs[i]
+                    h.Scale(aux.intLumi * xsec)
                 h.SetLineColor(self.color)
                 h.SetMarkerColor(self.color)
             if h0: h0.Add(h)
@@ -89,6 +90,7 @@ class Dataset:
                 h.SetMarkerColor(self.color)
             if h0: h0.Add(h)
             else: h0 = h
+        #if style.divideByBinWidth: h0.Scale(1., "width")
         return h0
 
 data = Dataset("SinglePhoton_Run2016B-03Feb2017_ver2-v2", 0, ROOT.kBlack) \
@@ -252,7 +254,7 @@ t6gg_1100_600 = Dataset("SMS-T6gg_1100_600", 0.0313372, ROOT.kRed+4, "")
 t5wg = Dataset("SMS-T5Wg", "data/xSec_SMS_Gluino_13TeV.pkl")
 t6wg = Dataset("SMS-T6Wg", "data/xSec_SMS_Squark_13TeV.pkl")
 t5wg_ext = Dataset("SMS-T5Wg_mGo2150To2500", "data/xSec_SMS_Gluino_13TeV.pkl")
-t6wg_ext = Dataset("SMS-T5Wg_mSq1850To2150", "data/xSec_SMS_Squark_13TeV.pkl")
+t6wg_ext = Dataset("SMS-T6Wg_mSq1850To2150", "data/xSec_SMS_Squark_13TeV.pkl")
 
 tchiwg_700 = Dataset("SMS-TChiWG_700", 9.51032/1000, ROOT.kRed+4, "")
 

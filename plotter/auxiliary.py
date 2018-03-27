@@ -558,6 +558,7 @@ def setMinMaxForLog():
 def modifySaveName(name):
     replacements = {"(": "", ")": "", "&":"AND", ".":"p", "<":"", ">":"", "*":"TIMES", "$": "DOLLAR"}
     replacements.update({"/":"DIV"})
+    replacements.update({"!":"NOT"})
     for a, b in replacements.iteritems():
         name = name.replace(a, b)
     return name

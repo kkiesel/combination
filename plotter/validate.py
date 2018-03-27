@@ -65,7 +65,10 @@ def validateHist():
 
 def validateSignalScan(scanName, point):
 
-    xsec = 0.00810078 # for m_g = 1600
+    mass = int(point.split("_")[0])
+    xsec = aux.getXsecSMSglu(mass)
+
+#    xsec = 0.00810078 # for m_g = 1600
     weight = xsec * aux.intLumi
 
     binning = [350, 450, 600]
@@ -101,8 +104,8 @@ def validateHistVsTree(dset, tname, hname):
 
 
 if __name__ == "__main__":
-    validateHistVsTree(gjets_dr, "simpleTree", "0_0/original/jCR/1.000000")
+    #validateHistVsTree(gjets_dr, "simpleTree", "0_0/original/jCR/1.000000")
     #validateHistVsTree(dset, "simpleTree", "0_0/original/jCR/1.000000")
     #validateHist()
-    #validateSignalScan("SMS-T5Wg", "1600_100")
     #validateSignalScan("SMS-T6Wg", "1600_100")
+    validateSignalScan("SMS-T5Wg", "2000_1000")

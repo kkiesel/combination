@@ -195,6 +195,180 @@ def getDirNames(filename, path):
     p = f.GetDirectory(path)
     return [key.GetName() for key in p.GetListOfKeys()]
 
+def gjetPrediction(dirHist, preSet, subSet, variable, nBins, weight="weight", saveName="", treeName="simpleTree"):
+    dirHist = dirHist.Clone("dir")
+    saveName = "savedFitPredictions/weight_{}_{}".format(aux.modifySaveName(saveName),aux.modifySaveName(weight))
+    saveNameRoot = saveName + ".root"
+    if os.path.isfile(saveNameRoot):
+        print "Using saved events from {}".format(saveNameRoot)
+        f = ROOT.TFile(saveNameRoot)
+        predFast = f.Get("prediction")
+        systFast = f.Get("syst")
+        if predFast and systFast and False:
+            for h in predFast, systFast: h.SetDirectory(0)
+            return predFast, systFast, dict([(x, aux.readNumber(saveNameRoot, x)) for x in "norm", "norm_relUnc", "scale", "scale_unc_tot", "scale_unc_stat"])
+
+        dirHist = f.Get("dir")
+        preHists = {}
+        for key in f.GetListOfKeys():
+            name = key.GetName()
+            if name == "dir": continue
+            try: preHists[float(name)] = key.ReadObj()
+            except: pass
+    else:
+        print "Calculating new", saveNameRoot
+        scales = [.75+.01*i for i in range(35)]
+        preHists = {}
+        for iscale, scale in enumerate(scales):
+            preHist = preSet.getHistFromTree("{}*{}".format(variable,scale), weight, nBins, treeName)
+            if subSet:
+                mcPreHist = subSet.getHistFromTree("{}*{}".format(variable,scale), weight, nBins, treeName)
+                preHist.Add(mcPreHist, -1)
+            preHist.SetName(str(scale))
+            preHists[scale] = preHist
+        # write histograms to file
+        f = ROOT.TFile(saveNameRoot, "recreate")
+        dirHist.Write()
+        for k, h in preHists.iteritems(): h.Write()
+        f.Close()
+
+    maxBin = dirHist.FindFixBin(100)-1 # do not take met=100 bin
+    dirInt, dirIntErr = aux.integralAndError(dirHist, 1, maxBin)
+    for bin in [0] + range(maxBin+1, dirHist.GetNbinsX()+2):
+        dirHist.SetBinContent(bin, 0)
+        dirHist.SetBinError(bin, 0)
+    gr = ROOT.TGraph()
+    preHists = collections.OrderedDict(sorted(preHists.items(), key=lambda t: t[0]))
+    for iscale, (scale, preHist) in enumerate(preHists.iteritems()):
+        for bin in [0] + range(maxBin+1, dirHist.GetNbinsX()+2):
+            preHist.SetBinContent(bin, 0)
+            preHist.SetBinError(bin, 0)
+
+        preHist.Scale(dirInt/preHist.Integral(1, maxBin))
+        chi2 = dirHist.Chi2Test(preHist, "OF UF CHI2 WW")
+        c = ROOT.TCanvas()
+        dirHist.GetXaxis().SetRangeUser(0,100)
+        preHist.GetXaxis().SetRangeUser(0,100)
+        dirHist.Draw()
+        preHist.SetLineColor(2)
+        preHist.Draw("same")
+        r = ratio.Ratio("#gamma/Jet", dirHist,preHist)
+        r.draw(.95,1.05)
+        l = aux.Label(info="Scale={}  #chi^{{2}}={}".format(scale, chi2))
+        #aux.save(saveName+"_scale{}percent".format(int(scale*100)), "savedFitPredictions/",log=False)
+        gr.SetPoint(iscale, scale, chi2)
+    c = ROOT.TCanvas()
+    points = [(i, gr.GetX()[i],gr.GetY()[i]) for i in range(gr.GetN())]
+    ys = [gr.GetY()[i] for i in range(gr.GetN())]
+    minIndex = ys.index(min(ys))
+    sidePoints = 3
+    if "final_highEMHT" in saveName or "blinded_highEMHT" in saveName: sidePoints = 8
+    if "final_lowEMHT_fineChi2" in saveName: sidePoints = 10
+    if "ee_lowEMHT_fineChi2" in saveName: sidePoints = 10
+    if "qcdClosure_lowEMHT_fineChi2" in saveName: sidePoints = 10
+    gr2 = ROOT.TGraph()
+    for iNew,iOld in enumerate(range(max(0,minIndex-sidePoints),min(gr.GetN(),minIndex+sidePoints+1))):
+        gr2.SetPoint(iNew, points[iOld][1], points[iOld][2])
+    gr = gr2
+
+    gr.SetTitle(";#it{s}_{CR};#chi^{2}")
+    gr.SetMarkerStyle(20)
+    maximum = max([gr.GetY()[i] for i in range(gr.GetN())])
+    gr.SetMaximum(1.7*maximum)
+    if "ee_lowEMHT_fineChi2" in saveName: gr.SetMaximum(1.1*maximum)
+    if "final_lowEMHT_fineChi2" in saveName: gr.SetMaximum(1.2*maximum)
+    if "qcdClosure_lowEMHT_fineChi2" in saveName: gr.SetMaximum(1.1*maximum)
+    gr.Draw("ap")
+    gr.Fit("pol2", "Q")
+    fitFunc = gr.GetFunction("pol2")
+    fitFunc.SetLineColor(ROOT.kRed)
+    parameters = fitFunc.GetParameters()
+    a0, a1, a2 = parameters[0], parameters[1], parameters[2]
+    chi2AtMin = a0 - a1**2/(4*a2)
+    fitScale = -a1/(2*a2)
+    deltaChi2 = 1 # change chi2 by this value for the uncertainty
+    fitErr = aux.sqrt(deltaChi2/a2) if a2>0 else 0
+    errFunc = fitFunc.Clone()
+    errFunc.SetRange(fitScale-fitErr, fitScale+fitErr)
+    errFunc.SetFillColorAlpha(errFunc.GetLineColor(), .5)
+    errFunc.SetFillStyle(1001)
+
+    errFunc.Draw("FC same")
+    text = ROOT.TLatex()
+    text.SetTextSize(text.GetTextSize()*0.8)
+    text.DrawLatexNDC(.2, .75, "#it{{s}}_{{CR}}^{{0}} = {:.3f} #pm {:.3f} (stat.) #pm {:.3f} (syst.)".format(fitScale,fitErr,abs(1-fitScale)))
+    text.DrawLatexNDC(.4, .67, "#chi^{{2}}/NDF = {:.1f} / {}".format(chi2AtMin, maxBin-1))
+    leg = ROOT.TLegend(.54,.82,.94,.92)
+    leg.SetFillStyle(0)
+    leg.AddEntry(errFunc, "Statistical uncertainty", "f")
+    leg.Draw()
+    info = "  #it{H}_{T}^{#gamma} %s 2 TeV"
+    info = info%(">" if "highEMHT" in saveName else "<")
+    aux.Label(sim="Closure" in saveName, info=info)
+    aux.save(saveName+"_fit", "savedFitPredictions/",log=False)
+
+    err = aux.sqrt(fitErr**2 + (1-fitScale)**2)
+    fitScaleUp = fitScale + err
+    fitScaleDn = fitScale - err
+
+    preHist = preSet.getHistFromTree("{}*{}".format(variable,fitScale), weight, nBins, treeName)
+    preHistUp = preSet.getHistFromTree("{}*{}".format(variable,fitScaleUp), weight, nBins, treeName)
+    preHistDn = preSet.getHistFromTree("{}*{}".format(variable,fitScaleDn), weight, nBins, treeName)
+    if subSet:
+        mcPreHist = subSet.getHistFromTree("{}*{}".format(variable,fitScale), weight, nBins, treeName)
+        preHistMcUp = preHist.Clone(aux.randomName())
+        preHistMcDn = preHist.Clone(aux.randomName())
+        preHistMcUp.Add(mcPreHist, -0.7)
+        preHistMcDn.Add(mcPreHist, -1.3)
+        mcPreHistUp = subSet.getHistFromTree("{}*{}".format(variable,fitScaleUp), weight, nBins, treeName)
+        mcPreHistDn = subSet.getHistFromTree("{}*{}".format(variable,fitScaleDn), weight, nBins, treeName)
+        preHist.Add(mcPreHist, -1)
+        preHistUp.Add(mcPreHistUp, -1)
+        preHistDn.Add(mcPreHistDn, -1)
+
+        # consider 30% uncertainy of mc background
+        systFromMc = aux.getSystFromDifference(preHistMcDn, preHistMcUp)
+
+    syst = aux.getSystFromDifference(preHistDn, preHistUp)
+    if subSet:
+        syst = aux.addUncertaintiesQuadratic([syst,systFromMc])
+
+
+    # Scale
+    preInt, preIntErr = aux.integralAndError(preHist, 1, maxBin)
+    preIntUp, preIntErrUp = aux.integralAndError(preHistUp, 1, maxBin)
+    preIntDn, preIntErrDn = aux.integralAndError(preHistDn, 1, maxBin)
+    preIntErr2 = abs(preIntDn-preIntUp)/2.
+    relScaleUncert = aux.sqrt( (dirIntErr/dirInt)**2 + (preIntErr/preInt)**2 + (preIntErr2/preInt)**2 )
+
+    for h in preHist, syst:
+        h.Scale(dirInt/preInt)
+        h.SetDirectory(0)
+
+    # Force symmetric systematic uncertainty
+    for bin in range(syst.GetNbinsX()+2):
+        syst.SetBinContent(bin, preHist.GetBinContent(bin))
+        syst.SetBinError(bin, aux.sqrt(syst.GetBinError(bin)**2 + (relScaleUncert*syst.GetBinContent(bin))**2))
+#    if style.divideByBinWidth:
+#        preHist.Scale(1., "width")
+#        syst.Scale(1., "width")
+
+    # do not allow negative event yields
+    # set to small value, see here: https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideHiggsAnalysisCombinedLimit#Why_does_combine_have_trouble_wi
+    for h in preHist, syst:
+        for bin in aux.loopH(h):
+            if h.GetBinContent(bin)<0: h.SetBinContent(bin,1e-7)
+
+    f = ROOT.TFile(saveNameRoot, "update")
+    preHist.Write("prediction")
+    syst.Write("syst")
+    f.Close()
+
+    info = {"norm": dirInt/preInt, "norm_relUnc": relScaleUncert, "scale": fitScale, "scale_unc_tot": err, "scale_unc_stat": fitErr}
+    for a,b in info.iteritems():
+        aux.writeNumber(saveNameRoot, a, b)
+    return preHist, syst, info
+
 def gjetPredictionHist(dirHist, preSet, subSet, nBins, lowEmht=True, saveName="", preDirJet="original"):
 
     # modify dir hist
@@ -337,9 +511,6 @@ def gjetPredictionHist(dirHist, preSet, subSet, nBins, lowEmht=True, saveName=""
     for bin in range(syst.GetNbinsX()+2):
         syst.SetBinContent(bin, preHist.GetBinContent(bin))
         syst.SetBinError(bin, aux.sqrt(syst.GetBinError(bin)**2 + (relScaleUncert*syst.GetBinContent(bin))**2))
-#    if style.divideByBinWidth:
-#        preHist.Scale(1., "width")
-#        syst.Scale(1., "width")
 
     # do not allow negative event yields
     # set to small value, see here: https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideHiggsAnalysisCombinedLimit#Why_does_combine_have_trouble_wi
@@ -347,7 +518,7 @@ def gjetPredictionHist(dirHist, preSet, subSet, nBins, lowEmht=True, saveName=""
         for bin in aux.loopH(h):
             if h.GetBinContent(bin)<0: h.SetBinContent(bin,1e-7)
 
-    info = {"scale": dirInt/preInt, "scaleErrRel": relScaleUncert, "shift": fitScale, "shiftErr": err, "shiftErrStat": fitErr}
+    info = {"norm": dirInt/preInt, "norm_relUnc": relScaleUncert, "scale": fitScale, "scale_unc_tot": err, "scale_unc_stat": fitErr}
     return preHist, syst, info
 
 def getDatacardUncertFromHist(h,b):
@@ -370,10 +541,11 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
     aux.drawOpt(dirHist, "data")
 
     if "electronClosure" not in name:
-        if "qcdClosure" in name:
-            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, None, nBins, lowEmht, name+"_"+dirDir, preDirJet="original")
-        else:
-            gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, zg+wg+ttg+wjets+ttjets_nlo+znunu, nBins, lowEmht, name+"_"+dirDir, "original")
+        weight = "weight*lowEMHT" if lowEmht else "weight*!lowEMHT"
+        if "qcdClosure" in name: subSet = None
+        else: subSet = zg+wg+ttg+wjets+ttjets_nlo+znunu
+        #gjetHist, gjetSyst, info = gjetPredictionHist(dirHist, preSet, subSet, nBins, lowEmht, name+"_"+dirDir, preDirJet="original")
+        gjetHist, gjetSyst, info = gjetPrediction(dirHist, preSet, subSet, "met", nBins, weight, name)
         print info
         gjetHist.SetLineColor(rwth.myLightBlue)
         gjetHist.GetXaxis().SetTitle("#it{p}_{T}^{miss} (GeV)")
@@ -423,6 +595,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         totSyst = aux.addHists(gjetSyst, eSyst, zgSyst, wgSyst, tgSyst)
 
         signal1 = metHist(t5wg, "1600_100/{}/nominal".format(dirDir), nBins, lowEmht)
+        signal1.Scale(0.5)
         signal2 = metHist(t6wg, "1750_1650/{}/nominalGG".format(dirDir), nBins, lowEmht)
         signal2.Scale(4.) # only gg scan
         for h in signal1, signal2:
@@ -431,9 +604,6 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
         signal1.SetLineColor(ROOT.kMagenta+2)
         signal2.SetLineColor(ROOT.kMagenta)
         signal2.SetLineStyle(2)
-
-        #signal1_pre = aux.createHistoFromDatasetTree(t5wg_1600_100, "met*{}".format(info["shift"]), weight, nBins, "tr_jControl/simpleTree")
-        #signal1_pre.Scale(info["scale"])
 
     if "electronClosure" in name:
         totStat = eHist
@@ -530,6 +700,7 @@ def finalDistributionSignalHist(name, lowEmht, dirSet, dirDir, preSet=None):
     aux.Label(sim= not dirSet==data, status="" if "allMC" not in name else "Private Work")
     aux.save(name+"_"+dirDir, normal=False, changeMinMax=False)
 
+    if "Closure" in name: return
     dataCardName = "dataCards/{}_{}.txt".format(name.replace("_lowEMHT", "").replace("_highEMHT",""), dirDir)
     if lowEmht: dc = limitTools.MyDatacard()
     else: dc = limitTools.MyDatacard(dataCardName)
@@ -598,7 +769,7 @@ if __name__ == "__main__":
     gqcd_highestHT.label = "(#gamma)+jet"
 
     selections = ["original", "all_cleaned", "di_cleaned", "lep_cleaned", "dilep_cleaned", "st_cleaned"]
-    selections = ["original"] #, "all_cleaned", "di_cleaned", "lep_cleaned", "dilep_cleaned", "st_cleaned"]
+    #selections = ["original"] #, "all_cleaned", "di_cleaned", "lep_cleaned", "dilep_cleaned", "st_cleaned"]
 
 
     for selection in selections:

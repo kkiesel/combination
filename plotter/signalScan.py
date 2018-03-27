@@ -141,8 +141,7 @@ def readDict( filename ):
     return d
 
 def writeSMSLimitConfig(infile, configName):
-    published = "T6gg" in infile or "T6Wg" in infile or "T5gg" in infile or "T5Wg" in infile
-    pubStr = "" if published else "Private Work"
+    pubStr = "Private Work"
     text = """
 HISTOGRAM {0} obs_hist
 EXPECTED {0} exp exp1up exp1dn kRed kOrange
@@ -244,12 +243,14 @@ def getSignalUncertainties(dset, selection, point, combi):
 
     return acc, cont, out
 
-def writeDataCards(outputDir, dset, selection, dataDatacard, combi):
-    f = ROOT.TFile(dset.files[0])
-    dirs = [k.GetName() for k in f.GetListOfKeys()]
+def writeDataCards(outputDir, dset, selection, dataDatacard, combi, onlyHigh):
+    dirs = aux.getDirNames(dset.files[0])
     #dirs = ["1600_100"] # cross check
     dc = limitTools.MyDatacard(dataDatacard)
     binNames = ["binlowEMHT_24", "binlowEMHT_25", "binlowEMHT_26", "binhighEMHT_24", "binhighEMHT_25", "binhighEMHT_26"]
+    if onlyHigh:
+        binNames = ["binhighEMHT_24", "binhighEMHT_25", "binhighEMHT_26"]
+        dc.
 
     for d in dirs:
         m1, m2 = getPointFromDir(d)
@@ -257,8 +258,7 @@ def writeDataCards(outputDir, dset, selection, dataDatacard, combi):
         if dset == t6wg and m1 < 1100: continue
         acc, cont, syst = getSignalUncertainties(dset, selection, d, combi)
         # subtract signal contamination
-        #acc = [a-b for a,b in zip(acc,cont)]
-        # TODO: Add here, even if negligible
+        acc = [a-b for a,b in zip(acc,cont)]
 
         # Assume 1/4 gg, 1/2 wg and 1/4 ww in the scan, correct for those fractions
         if combi == "gg": acc = [4.*a for a in acc]
@@ -584,32 +584,33 @@ def build1dGraphs(outputDir, dset):
     toDraw["obs_hist"] = interpolateAlongY(toDraw["obs_hist_gaps"])
     writeDict(toDraw, outputDir+"/saved_graphs1d_limit.root")
 
-def signalScan(dset, selection, dataDatacard, saveName="", combi=""):
+def signalScan(dset, selection, dataDatacard, saveName="", combi="", onlyHigh=False):
 
     outputDir = "limitCalculations/{}_{}".format(dset.label, selection)
     if saveName: outputDir += "_" + saveName
     if combi: outputDir += "_" + combi
     if not os.path.isdir(outputDir): os.mkdir(outputDir)
-
-    #writeDataCards(outputDir, dset, selection, dataDatacard, combi)
+    if False:
+        writeDataCards(outputDir, dset, selection, dataDatacard, combi, onlyHigh)
+        if dset == t5wg: writeDataCards(outputDir, t5wg_ext, selection, dataDatacard, combi, onlyHigh)
+        if dset == t6wg: writeDataCards(outputDir, t6wg_ext, selection, dataDatacard, combi, onlyHigh)
     #drawLimitInput(outputDir, dset.label)
     #callMultiCombine(outputDir)
     ##clearWrongCombineOutputs(outputDir)
     #if "TChi" in dset.label: return proceedWithWeakScan(outputDir, dset, selection, saveName, combi)
     build2dGraphs(outputDir)
     build1dGraphs(outputDir, dset)
-    #writeSMSLimitConfig(outputDir+"/saved_graphs1d_limit.root", "smsPlotter/config/SUS16047/%s_SUS16047.cfg"%scanName)
-    #subprocess.call(["python2", "smsPlotter/python/makeSMSplots.py", "smsPlotter/config/SUS16047/%s_SUS16047.cfg"%scanName, "plots/%s_limits_"%scanName])
+    writeSMSLimitConfig(outputDir+"/saved_graphs1d_limit.root", outputDir+"/smsPlotterer.cfg")
+    subprocess.call(["python2", "smsPlotter/python/makeSMSplots.py", outputDir+"/smsPlotterer.cfg", "plots/limits_{}_".format(outputDir.replace("limitCalculations/", ""))])
 
 if __name__ == "__main__":
-    signalScan(t5wg, "original", "dataCards/final_original.txt", "test")
+    #signalScan(t5wg, "original", "dataCards/final_original.txt", "test")
     #signalScan(t5wg, "original", "dataCards/final_original.txt", "test", "gg")
     #signalScan(t6wg, "original", "dataCards/final_original.txt", "test")
     #signalScan(t6wg, "original", "dataCards/final_original.txt", "test", "gg")
 
-    #signalScan(t5wg, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test")
     #signalScan(t5wg, "di_cleaned", "dataCards/final_di_cleaned.txt", "test")
     #signalScan(t5wg, "lep_cleaned", "dataCards/final_lep_cleaned.txt", "test")
+    #signalScan(t5wg, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test")
     #signalScan(t5wg, "all_cleaned", "dataCards/final_all_cleaned.txt", "test")
 
-    #signalScan(t5wg, "di_cleaned", "dataCards/final_di_cleaned.txt", "test", "gg")
