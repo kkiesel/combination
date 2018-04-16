@@ -289,13 +289,22 @@ class MyDatacard(Datacard):
                 totRate += 0 if process == "signal" else rate
             self.obs[binName] = round(totRate)
 
+    def clearSysts(self):
+        # Remove systematic uncertainties which are 0
+        self.systs = [s for s in self.systs if sum([sum(n.values()) for n in list(s)[4].values()]) > 1e-5]
+
     def removeBin(self, bname):
         self.bins.remove(bname)
         del self.obs[bname]
-        self.keyline = []
-        self.exp = {}
+        self.keyline = [a for a in self.keyline if bname not in a]
+        del self.exp[bname]
         #self.systs = [(x, False, 'lnN', [], {}) for x in "lumi", "jec", "pdf", "gqcdSyst", "eleSyst", "wgSyst", "zgSyst", "ttgSyst"]
-        self.systs = []
+        newSysts = []
+        for a,b,c,d,e in self.systs:
+            del e[bname]
+            newSysts.append((a,b,c,d,e))
+        self.systs = newSysts
+        self.clearSysts()
 
 
     def removeAllBinsExcept(self, bname):
@@ -348,9 +357,13 @@ class Limit:
 
 
 if False:
-    inFileName = "limitCalculations/observation_v3.txt"
+    inFileName = "final_original.txt"
     dc = MyDatacard(inFileName)
-    dc.setExpection()
+    dc.removeBin("binlowEMHT_24")
+    dc.removeBin("binlowEMHT_25")
+    dc.removeBin("binlowEMHT_26")
+
+    print dc
     dc.write("test.txt")
 
     #dc.newSignal({

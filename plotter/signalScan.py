@@ -7,10 +7,14 @@ import glob
 
 from finalPredictions import metHist
 
-def proceedWithWeakScan(outputDir, scanName, xsecFile):
+def proceedWithWeakScan(outputDir, dset, selection, saveName, combi, onlyHigh):
+    scanName = "{}_{}_{}".format(dset.label, selection, saveName)
+    if combi: scanName += "_"+combi
+    if onlyHigh: scanName += "_highHTG"
+    xsecFile = dset.xsecs[0]
     scanRes = {}
     for fname in glob.glob("{}/*.txt.limit".format(outputDir)):
-        m = re.match(".*_(\d+)_(\d+).txt.limit", fname)
+        m = re.match(".*[^\d](\d+)_(\d+).txt.limit", fname)
         with open(fname) as f: scanRes[int(m.group(1))] = limitTools.infoFromOut(f.read())
 
     defaultGr = ROOT.TGraph(len(scanRes))
@@ -250,7 +254,9 @@ def writeDataCards(outputDir, dset, selection, dataDatacard, combi, onlyHigh):
     binNames = ["binlowEMHT_24", "binlowEMHT_25", "binlowEMHT_26", "binhighEMHT_24", "binhighEMHT_25", "binhighEMHT_26"]
     if onlyHigh:
         binNames = ["binhighEMHT_24", "binhighEMHT_25", "binhighEMHT_26"]
-        dc.
+        dc.removeBin("binlowEMHT_24")
+        dc.removeBin("binlowEMHT_25")
+        dc.removeBin("binlowEMHT_26")
 
     for d in dirs:
         m1, m2 = getPointFromDir(d)
@@ -260,6 +266,11 @@ def writeDataCards(outputDir, dset, selection, dataDatacard, combi, onlyHigh):
         # subtract signal contamination
         acc = [a-b for a,b in zip(acc,cont)]
 
+        if onlyHigh:
+            acc = acc[3:]
+            cont = cont[3:]
+            for a,b in syst.iteritems():
+                syst[a] = b[3:]
         # Assume 1/4 gg, 1/2 wg and 1/4 ww in the scan, correct for those fractions
         if combi == "gg": acc = [4.*a for a in acc]
         elif combi == "wg": acc = [2.*a for a in acc]
@@ -589,15 +600,16 @@ def signalScan(dset, selection, dataDatacard, saveName="", combi="", onlyHigh=Fa
     outputDir = "limitCalculations/{}_{}".format(dset.label, selection)
     if saveName: outputDir += "_" + saveName
     if combi: outputDir += "_" + combi
+    if onlyHigh: outputDir += "_highHtg"
     if not os.path.isdir(outputDir): os.mkdir(outputDir)
-    if False:
+    if True and False:
         writeDataCards(outputDir, dset, selection, dataDatacard, combi, onlyHigh)
         if dset == t5wg: writeDataCards(outputDir, t5wg_ext, selection, dataDatacard, combi, onlyHigh)
         if dset == t6wg: writeDataCards(outputDir, t6wg_ext, selection, dataDatacard, combi, onlyHigh)
     #drawLimitInput(outputDir, dset.label)
     #callMultiCombine(outputDir)
     ##clearWrongCombineOutputs(outputDir)
-    #if "TChi" in dset.label: return proceedWithWeakScan(outputDir, dset, selection, saveName, combi)
+    if "TChi" in dset.label: return proceedWithWeakScan(outputDir, dset, selection, saveName, combi, onlyHigh)
     build2dGraphs(outputDir)
     build1dGraphs(outputDir, dset)
     writeSMSLimitConfig(outputDir+"/saved_graphs1d_limit.root", outputDir+"/smsPlotterer.cfg")
@@ -612,5 +624,12 @@ if __name__ == "__main__":
     #signalScan(t5wg, "di_cleaned", "dataCards/final_di_cleaned.txt", "test")
     #signalScan(t5wg, "lep_cleaned", "dataCards/final_lep_cleaned.txt", "test")
     #signalScan(t5wg, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test")
+    #signalScan(t5wg, "st_cleaned", "dataCards/final_st_cleaned.txt", "test")
     #signalScan(t5wg, "all_cleaned", "dataCards/final_all_cleaned.txt", "test")
+    signalScan(t5wg, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test", onlyHigh=True)
 
+    # repeat with tching
+    #signalScan(tching, "original", "dataCards/final_original.txt", "test")
+    #signalScan(tching, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test")
+    #signalScan(tching, "all_cleaned", "dataCards/final_all_cleaned.txt", "test")
+    #signalScan(tching, "dilep_cleaned", "dataCards/final_dilep_cleaned.txt", "test", onlyHigh=True)

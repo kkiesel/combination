@@ -255,6 +255,8 @@ t5wg = Dataset("SMS-T5Wg", "data/xSec_SMS_Gluino_13TeV.pkl")
 t6wg = Dataset("SMS-T6Wg", "data/xSec_SMS_Squark_13TeV.pkl")
 t5wg_ext = Dataset("SMS-T5Wg_mGo2150To2500", "data/xSec_SMS_Gluino_13TeV.pkl")
 t6wg_ext = Dataset("SMS-T6Wg_mSq1850To2150", "data/xSec_SMS_Squark_13TeV.pkl")
+tching = Dataset("SMS-TChiNG_BF50N50G", "data/xSec_SMS_TChiNG_13TeV_interpolated_5.pkl")
+#ggm1 = Dataset("GGM_GravitinoLSP_M1-200to1500_M2-200to1500")
 
 tchiwg_700 = Dataset("SMS-TChiWG_700", 9.51032/1000, ROOT.kRed+4, "")
 
