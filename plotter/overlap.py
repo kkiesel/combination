@@ -72,7 +72,7 @@ def createPlots(infos):
     searchRegionLabels = "350-450", "450-600", "600-#infty  "
     for b in range(6):
         hDefault.GetXaxis().SetBinLabel(b+1, searchRegionLabels[b%3])
-    hDefault.SetXTitle("#it{p}_{T}^{miss} in #it{H}_{T}^{#gamma}>2TeV     #it{p}_{T}^{miss} in #it{H}_{T}^{#gamma}<2TeV")
+    hDefault.SetXTitle("#it{p}_{T}^{miss} in #it{H}_{T}^{#gamma}<2TeV     #it{p}_{T}^{miss} in #it{H}_{T}^{#gamma}>2TeV")
 
     hs = dict((x,hDefault.Clone(x)) for x in ["ht", "st", "lg", "gg"])
     for info in infos:
